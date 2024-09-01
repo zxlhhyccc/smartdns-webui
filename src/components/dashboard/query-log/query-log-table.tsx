@@ -1,0 +1,507 @@
+
+"use client"
+
+import * as React from 'react';
+import { useMemo, useState } from 'react';
+import {
+  MaterialReactTable,
+  useMaterialReactTable,
+  type MRT_ColumnFilterFnsState as MRTColumnFilterFnsState,
+  type MRT_ColumnDef as MRTColumnDef,
+  type MRT_ColumnFiltersState as MRTColumnFiltersState,
+  type MRT_PaginationState as MRTPaginationState,
+  type MRT_SortingState as MRTSortingState,
+  MRT_ActionMenuItem as MRTActionMenuItem,
+  type MRT_Row as MRTRow,
+  type MRT_Cell as MRTCell,
+  type MRT_TableInstance as MRTTableInstance,
+} from 'material-react-table';
+import { IconButton, Tooltip, useTheme } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import dayjs from 'dayjs';
+import {
+  QueryClient,
+  QueryClientProvider,
+  keepPreviousData,
+  useQuery,
+} from '@tanstack/react-query';
+
+import { type DomainList, type QueryLogsParams, smartdnsServer } from '@/lib/backend/server';
+import { useUser } from '@/hooks/use-user';
+import { useTranslation } from 'react-i18next';
+import { MRT_Localization_EN } from 'material-react-table/locales/en';
+import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
+import i18n from '@/components/core/i18n';
+import { Delete, Domain } from '@mui/icons-material';
+import { type SnackbarOrigin, SnackbarProvider, useSnackbar } from 'notistack';
+
+
+interface UserApiResponse {
+  data: DomainList[];
+  meta: {
+    totalRowCount: number;
+  };
+};
+
+
+function TableQueryLogs(): React.JSX.Element {
+  const { t } = useTranslation();
+
+  const columns = useMemo<MRTColumnDef<DomainList>[]>(
+    () => [
+      {
+        accessorKey: 'id',
+        header: t('ID'),
+        size: 110,
+        enableColumnActions: false,
+        columnFilterModeOptions: ['equals'],
+      },
+      {
+        accessorKey: 'domain',
+        header: t('Domain'),
+        size: 360,
+        enableColumnActions: false,
+        columnFilterModeOptions: ['contains', 'equals'],
+      },
+      {
+        accessorKey: 'domain_type',
+        header: t('Type'),
+        size: 90,
+        enableColumnActions: false,
+        columnFilterModeOptions: ['equals'],
+      },
+      {
+        accessorKey: 'client',
+        header: t('Client'),
+        size: 315,
+        enableColumnActions: false,
+        columnFilterModeOptions: ['equals'],
+      },
+      {
+        accessorKey: 'timestamp',
+        header: t('Time'),
+        // eslint-disable-next-line react/no-unstable-nested-components -- ignore
+        Cell: ({ cell }) => {
+          const timestamp = cell.getValue<string>();
+          const localTime = new Date(timestamp).toLocaleString();
+          return <span>{localTime}</span>;
+        },
+        filterVariant: 'datetime-range',
+        columnFilterModeOptions: ['equals'],
+        enableColumnActions: false,
+        size: 120,
+      },
+      {
+        accessorKey: 'ping_time',
+        header: t('Ping'),
+        size: 90,
+        enableColumnActions: false,
+        // eslint-disable-next-line react/no-unstable-nested-components -- ignore
+        Cell: ({ cell }) => {
+          const pingTime = cell.getValue<number>();
+          if (pingTime < 0) {
+            return <span>N/A</span>;
+          }
+          return <span>{pingTime} ms</span>;
+        },
+        columnFilterModeOptions: ['equals'],
+      },
+      {
+        accessorKey: 'domain_group',
+        header: t('Group'),
+        columnFilterModeOptions: ['equals'],
+        enableColumnActions: false,
+      },
+      {
+        accessorKey: 'is_blocked',
+        header: t('Is Blocked'),
+        size: 150,
+        columnFilterModeOptions: ['equals'],
+        enableColumnActions: false,
+      },
+      {
+        accessorKey: 'query_time',
+        header: t('Query Time'),
+        // eslint-disable-next-line react/no-unstable-nested-components -- ignore
+        Cell: ({ cell }) => {
+          const queryTime = cell.getValue<number>();
+          return <span>{queryTime} ms</span>;
+        },
+        columnFilterModeOptions: ['equals'],
+        enableColumnActions: false,
+      },
+      {
+        accessorKey: 'reply_code',
+        header: t('Reply Code'),
+        columnFilterModeOptions: ['equals'],
+        enableColumnActions: false,
+      },
+    ],
+    [t],
+  );
+
+  const { checkSessionError } = useUser();
+  const [columnFilters, setColumnFilters] = useState<MRTColumnFiltersState>(
+    [],
+  );
+  const [columnFilterFns, setColumnFilterFns] =
+    useState<MRTColumnFilterFnsState>(
+      () => Object.fromEntries(
+        columns.map(({ accessorKey }) => [accessorKey, 'equals'])
+      ) as MRTColumnFilterFnsState
+    );
+  const [globalFilter, setGlobalFilter] = useState('');
+  const [errorMsg, setErrorMsg] = useState("Error loading data");
+  const [sorting, setSorting] = useState<MRTSortingState>([]);
+  const [pagination, setPagination] = useState<MRTPaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [tableLocales, setTableLocales] = useState(MRT_Localization_EN);
+  const { enqueueSnackbar } = useSnackbar();
+  const isActionAlignRight = React.useRef(false);
+
+  if (window.innerWidth >= 1200) {
+    isActionAlignRight.current = true;
+  }
+
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const filters: MRTColumnFiltersState = [];
+
+    const timestamp : (dayjs.Dayjs | undefined) [] = [ undefined, undefined ];
+    let existTimestamp = false;
+    searchParams.forEach((value, key) => {
+      if (key === 'timestamp_after') {
+        const v = dayjs(Number(value));
+        if (v.isValid()) {
+          timestamp[0] = v;
+          existTimestamp = true;
+        }
+
+        return;
+      }
+        
+      if (key === 'timestamp_before') {
+        const v = dayjs(Number(value));
+        if (v.isValid()) {
+          timestamp[1] = v;
+          existTimestamp = true;
+        }
+
+        return;
+      }
+
+      filters.push({ id: key, value });
+
+    });
+
+    if (existTimestamp) {
+      filters.push({ id: 'timestamp', value: timestamp });
+    }
+
+    setColumnFilters(filters);
+  }, []);
+
+  const {
+    data: { data = [], meta } = {},
+    isError,
+    isRefetching,
+    isLoading,
+    refetch,
+  } = useQuery<UserApiResponse>({
+    queryKey: [
+      'table-data',
+      columnFilterFns,
+      columnFilters,
+      globalFilter,
+      pagination.pageIndex,
+      pagination.pageSize,
+      sorting,
+    ],
+    queryFn: async () => {
+      const queryParam: QueryLogsParams = {
+        'page_num': pagination.pageIndex + 1,
+        'page_size': pagination.pageSize,
+      };
+
+      columnFilters.forEach(filter => {
+        if (filter.id === null || filter.id === undefined || filter.value === null || filter.value === undefined) {
+          return;
+        }
+
+        const filterMode = columnFilterFns[filter.id];
+        if (filter.id === 'domain' && filterMode === 'contains') {
+          queryParam['domain_filter_mode'] = filterMode as string;
+        }
+
+        if (filter.id === 'timestamp') {
+          const timerange = filter.value as string[];
+          if (timerange.length === 2) {
+            if (timerange[0]) {
+              queryParam['timestamp_after'] = new Date(timerange[0]).getTime();
+            }
+
+            if (timerange[1]) {
+              queryParam['timestamp_before'] = new Date(timerange[1]).getTime();
+            }
+          }
+        }
+        const filterId = filter.id as keyof QueryLogsParams;
+        queryParam[filterId] = filter.value as string;
+      });
+
+      const data = await smartdnsServer.GetQueryLogs(queryParam);
+      if (data.error) {
+        await checkSessionError?.(data.error);
+        setErrorMsg(smartdnsServer.getErrorMessage(data.error));
+        throw new Error(errorMsg);
+      }
+
+      if (data.data === null || data.data === undefined) {
+        setErrorMsg('Error loading data');
+        throw new Error(errorMsg);
+      }
+
+      const resp: UserApiResponse = {
+        data: data.data.domain_list,
+        meta: {
+          totalRowCount: data.data.total_count,
+        },
+      };
+
+      return resp;
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  React.useEffect(() => {
+    if (i18n.language === null || i18n.language === undefined) {
+      return;
+    }
+
+    if (i18n.language === 'zh-CN') {
+      setTableLocales(MRT_Localization_ZH_HANS);
+    } else {
+      setTableLocales(MRT_Localization_EN);
+    }
+  }, []);
+
+  const handleRowWhois = React.useCallback(async (row: MRTRow<DomainList>) => {
+    const domain = row.original.domain;
+
+    const ret = await smartdnsServer.GetWhois(domain);
+    if (ret.error) {
+      enqueueSnackbar(`Error: ${t(smartdnsServer.getErrorMessage(ret.error))}`);
+      return;
+    }
+
+    if (ret.data === null || ret.data === undefined) {
+      enqueueSnackbar(`Error: ${t('No data returned.')}`);
+      return;
+    }
+
+    const whoisData = ret.data;
+    let msg = "";
+    let domainMsg = "";
+    if (whoisData.domain.length > 0) {
+      domainMsg += `${t('Domain')}: ${whoisData.domain}\n`;
+    }
+
+    if (whoisData.organization.length > 0) {
+      msg += `${t('Organization')}: ${whoisData.organization}\n`;
+    }
+
+    if (whoisData.registrar.length > 0) {
+      msg += `${t('Registrar')}: ${whoisData.registrar}\n`;
+    }
+
+    if (whoisData.country.length > 0) {
+      msg += `${t('Country')}: ${whoisData.country}\n`;
+    }
+
+    if (msg.length === 0) {
+      msg = t('Whois data not available');
+    }
+
+    enqueueSnackbar(domainMsg + msg, { style: { whiteSpace: 'pre-line' } });
+  }, [t, enqueueSnackbar]);
+
+  const handleRowDelete = React.useCallback(async (row: MRTRow<DomainList>) => {
+    const id = row.original.id;
+    const domain = row.original.domain;
+    const ret = await smartdnsServer.DeleteQueryLogById(id);
+    if (ret.error) {
+      enqueueSnackbar(`${t('Error')}: ${t(smartdnsServer.getErrorMessage(ret.error))}, id: ${id}`, { variant: 'error' });
+      return;
+    }
+
+    enqueueSnackbar(t('Delete query log {{id}} {{domain}} successfully.', { id, domain }), { variant: 'success' });
+  }, [t, enqueueSnackbar]);
+
+  const renderRowMenuItem = (closeMenu: () => void, row: MRTRow<DomainList>, table: MRTTableInstance<DomainList>): React.ReactNode[] => (
+    [
+      <MRTActionMenuItem
+        icon={<Domain />}
+        key="whois"
+        label="whois"
+        onClick={async (e) => { e.preventDefault(); closeMenu(); await handleRowWhois(row); }}
+        table={table}
+      />,
+      <MRTActionMenuItem
+        icon={<Delete />}
+        key="delete"
+        label="Delete"
+        onClick={async (e) => { e.preventDefault(); closeMenu(); await handleRowDelete(row); }}
+        table={table}
+      />,
+    ]
+  );
+
+  const renderCellMenuItem = (closeMenu: () => void, _cell: MRTCell<DomainList>, row: MRTRow<DomainList>, table: MRTTableInstance<DomainList>): React.ReactNode[] => (
+    [
+      renderRowMenuItem(closeMenu, row, table),
+    ]
+  );
+
+  const theme = useTheme();
+  const root = getComputedStyle(document.documentElement);
+  const cssVarRegex = /--[^)]+/;
+  const cssVarMatch = cssVarRegex.exec(theme.palette?.background?.paper ?? '');
+  const cssVarName = cssVarMatch ? cssVarMatch[0] : '';
+  const baseBackgroundColor = root.getPropertyValue(cssVarName ?? '').trim();
+
+  const table = useMaterialReactTable({
+    columns,
+    data,
+    localization: tableLocales,
+    enableColumnResizing: true,
+    enableSorting: false,
+    enableColumnOrdering: true,
+    enableRowActions: true,
+    enableCellActions: true,
+    enableClickToCopy: window.isSecureContext,
+    enableGlobalFilter: false,
+    columnFilterDisplayMode: 'popover',
+    enableColumnFilterModes: true,
+    enableColumnPinning: true,
+    enableColumnDragging: false,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    muiFilterDateTimePickerProps: {
+      ampm: false,
+    },
+    muiToolbarAlertBannerProps: isError
+      ? {
+        color: 'error',
+        children: errorMsg,
+      }
+      : undefined,
+    onColumnFilterFnsChange: setColumnFilterFns,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    renderTopToolbarCustomActions: () => (
+      <Tooltip arrow title={t("Refresh Data")}>
+        <IconButton onClick={() => refetch()}>
+          <RefreshIcon />
+        </IconButton>
+      </Tooltip>
+    ),
+    renderRowActionMenuItems: ({ closeMenu, row, table }) => {
+      return [
+        renderRowMenuItem(closeMenu, row, table),
+      ]
+    },
+    renderCellActionMenuItems: ({ closeMenu, cell, row, table, internalMenuItems }) => {
+      return [
+        renderCellMenuItem(closeMenu, cell, row, table),
+        ...internalMenuItems,
+      ];
+    },
+    muiLinearProgressProps: {
+      color: 'primary',
+      variant: 'determinate',
+      value: isRefetching ? 50 : 100,
+    },
+    rowCount: meta?.totalRowCount ?? 0,
+    initialState: {
+      columnVisibility: {
+        'is_blocked': false,
+        'domain_group': false,
+        'query_time': false,
+        'reply_code': false,
+      },
+      columnPinning: {
+        right: isActionAlignRight?.current ? ['mrt-row-actions'] : [],
+      },
+    },
+    state: {
+      columnFilters,
+      globalFilter,
+      isLoading,
+      pagination,
+      showAlertBanner: isError,
+      showProgressBars: isRefetching,
+      showSkeletons: isLoading,
+      sorting,
+    },
+    mrtTheme: (_theme) => ({
+      baseBackgroundColor,
+    }),
+  });
+
+  return (<MaterialReactTable table={table} />);
+};
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+
+export function QueryLogTable(): React.JSX.Element {
+
+  const [state, setState] = React.useState<SnackbarOrigin>({
+    vertical: 'top',
+    horizontal: 'left',
+  });
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 600px)');
+    const handleMediaQueryChange = (event: MediaQueryListEvent): void => {
+      if (event.matches) {
+        setState({ vertical: 'top', horizontal: 'left' });
+      } else {
+        setState({ vertical: 'bottom', horizontal: 'left' });
+      }
+    };
+
+    if (mediaQuery.matches) {
+      setState({ vertical: 'top', horizontal: 'left' });
+    } else {
+      setState({ vertical: 'bottom', horizontal: 'left' });
+    }
+
+    mediaQuery.addEventListener('change', handleMediaQueryChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaQueryChange);
+    };
+  }, [setState]);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SnackbarProvider
+        anchorOrigin={state}
+        maxSnack={5} autoHideDuration={6000}>
+        <TableQueryLogs />
+      </SnackbarProvider>
+    </QueryClientProvider>
+  );
+}

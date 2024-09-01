@@ -1,0 +1,42 @@
+SYSINFO
+ VERSION
+ PID
+ STARTED TIME
+ user/group
+ cpu utilization
+ memory utilization
+ used memory
+ dns cache memory size:
+
+card:
+Total Queries    AD
+Queryies Blocked   
+percentage blocked   AD DIFF TYPE 
+domains on adlists
+
+
+chart: line
+total queries over last 24 hours
+client activity over last 24 hours
+
+chart: circle
+query types:
+   A
+   NS
+
+upstream server:
+   blocked:
+   cached:
+   upstream server:
+
+Top clients:(total)
+Top Permitted domains:
+    domain: hits: Frequency
+
+OVERVIEW: AD
+   Request
+   Average Process TIME
+
+blocked domain list
+
+upstream server process time:
