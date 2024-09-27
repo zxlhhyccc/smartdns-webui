@@ -35,3 +35,15 @@ body {
 .apexcharts-canvas > svg {
   background-color: transparent !important;
 }
+
+.metrics-card {
+  position: relative;
+  padding: 16px;
+}
+
+.metrics-background-icon {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  color: rgba(0, 0, 0, 0.08);
+}

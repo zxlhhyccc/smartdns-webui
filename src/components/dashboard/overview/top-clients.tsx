@@ -39,7 +39,7 @@ function TopClientsTable({ clients}: TopClientsProps): React.JSX.Element {
             const encodedClient = encodeURIComponent(client.client_ip);
             return (
               <TableRow key={client.client_ip}>
-                <TableCell><Link href={`${paths.dashboard.queryLog}?client=${encodedClient}`} >{client.client_ip}</Link></TableCell>
+                <TableCell><Link href={`${paths.dashboard.queryLog}?client=${encodedClient}&total_count=${client.query_count}`} >{client.client_ip}</Link></TableCell>
                 <TableCell>{client.query_count}</TableCell>
               </TableRow>
             );

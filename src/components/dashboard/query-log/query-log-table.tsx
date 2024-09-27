@@ -16,7 +16,7 @@ import {
   type MRT_Cell as MRTCell,
   type MRT_TableInstance as MRTTableInstance,
 } from 'material-react-table';
-import { IconButton, Tooltip, useTheme } from '@mui/material';
+import { Card, IconButton, Tooltip, useTheme } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import dayjs from 'dayjs';
 import {
@@ -42,6 +42,12 @@ interface UserApiResponse {
     totalRowCount: number;
   };
 };
+
+interface PageCursor {
+  pageNumber: number;
+  firstID: number;
+  lastID: number;
+}
 
 
 function TableQueryLogs(): React.JSX.Element {
@@ -73,7 +79,7 @@ function TableQueryLogs(): React.JSX.Element {
       {
         accessorKey: 'client',
         header: t('Client'),
-        size: 315,
+        size: 330,
         enableColumnActions: false,
         columnFilterModeOptions: ['equals'],
       },
@@ -147,16 +153,23 @@ function TableQueryLogs(): React.JSX.Element {
   const [columnFilterFns, setColumnFilterFns] =
     useState<MRTColumnFilterFnsState>(
       () => Object.fromEntries(
-        columns.map(({ accessorKey }) => [accessorKey, 'equals'])
+        columns.map(({ accessorKey }) => {
+          return [accessorKey, 'equals'];
+        })
       ) as MRTColumnFilterFnsState
     );
+  const [shouldFetchData, setShouldFetchData] = useState(false);
   const [globalFilter, setGlobalFilter] = useState('');
   const [errorMsg, setErrorMsg] = useState("Error loading data");
   const [sorting, setSorting] = useState<MRTSortingState>([]);
+  const lastPage = React.useRef(0);
+  const pageCursor = React.useRef<PageCursor | null>(null);
   const [pagination, setPagination] = useState<MRTPaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
+  const [totalRowCount, setTotalRowCount] = useState(0);
+
   const [tableLocales, setTableLocales] = useState(MRT_Localization_EN);
   const { enqueueSnackbar } = useSnackbar();
   const isActionAlignRight = React.useRef(false);
@@ -169,7 +182,7 @@ function TableQueryLogs(): React.JSX.Element {
     const searchParams = new URLSearchParams(location.search);
     const filters: MRTColumnFiltersState = [];
 
-    const timestamp : (dayjs.Dayjs | undefined) [] = [ undefined, undefined ];
+    const timestamp: (dayjs.Dayjs | undefined)[] = [undefined, undefined];
     let existTimestamp = false;
     searchParams.forEach((value, key) => {
       if (key === 'timestamp_after') {
@@ -181,7 +194,7 @@ function TableQueryLogs(): React.JSX.Element {
 
         return;
       }
-        
+
       if (key === 'timestamp_before') {
         const v = dayjs(Number(value));
         if (v.isValid()) {
@@ -192,8 +205,11 @@ function TableQueryLogs(): React.JSX.Element {
         return;
       }
 
-      filters.push({ id: key, value });
+      if (columns.findIndex((column) => column.accessorKey === key) === -1) {
+        return;
+      }
 
+      filters.push({ id: key, value });
     });
 
     if (existTimestamp) {
@@ -201,7 +217,10 @@ function TableQueryLogs(): React.JSX.Element {
     }
 
     setColumnFilters(filters);
-  }, []);
+    if (!shouldFetchData) {
+      setShouldFetchData(true);
+    }
+  }, [shouldFetchData, columns]);
 
   const {
     data: { data = [], meta } = {},
@@ -210,6 +229,7 @@ function TableQueryLogs(): React.JSX.Element {
     isLoading,
     refetch,
   } = useQuery<UserApiResponse>({
+    enabled: shouldFetchData,
     queryKey: [
       'table-data',
       columnFilterFns,
@@ -220,10 +240,29 @@ function TableQueryLogs(): React.JSX.Element {
       sorting,
     ],
     queryFn: async () => {
+      const currentPageNumber = pagination.pageIndex + 1;
       const queryParam: QueryLogsParams = {
-        'page_num': pagination.pageIndex + 1,
+        'page_num': currentPageNumber,
         'page_size': pagination.pageSize,
       };
+
+      if (pageCursor.current !== null && pageCursor.current !== undefined) {
+        if (currentPageNumber > lastPage.current && currentPageNumber === lastPage.current + 1) {
+          if (pageCursor.current.lastID >= 0) {
+            queryParam['cursor'] = pageCursor.current.lastID;
+            queryParam['total_count'] = totalRowCount;
+            queryParam['cursor_direction'] = 'next';
+          }
+        } else if (currentPageNumber < lastPage.current && currentPageNumber === lastPage.current - 1) {
+          if (pageCursor.current.firstID >= 0) {
+            queryParam['cursor'] = pageCursor.current.firstID;
+            queryParam['total_count'] = totalRowCount;
+            queryParam['cursor_direction'] = 'prev';
+          }
+        }
+      }
+
+      lastPage.current = currentPageNumber;
 
       columnFilters.forEach(filter => {
         if (filter.id === null || filter.id === undefined || filter.value === null || filter.value === undefined) {
@@ -263,10 +302,23 @@ function TableQueryLogs(): React.JSX.Element {
         throw new Error(errorMsg);
       }
 
+      let totalCount = 0;
+      if (data.data.total_count > 0 && data.data.domain_list.length > 0) {
+        const newPageCursor: PageCursor = {
+          firstID: data.data.domain_list[0].id,
+          lastID: data.data.domain_list[data.data.domain_list.length - 1].id,
+          pageNumber: currentPageNumber + 1,
+        };
+
+        pageCursor.current = newPageCursor;
+        totalCount = data.data.total_count;
+      }
+
+      setTotalRowCount(totalCount)
       const resp: UserApiResponse = {
         data: data.data.domain_list,
         meta: {
-          totalRowCount: data.data.total_count,
+          totalRowCount: totalCount,
         },
       };
 
@@ -386,11 +438,15 @@ function TableQueryLogs(): React.JSX.Element {
     enableColumnFilterModes: true,
     enableColumnPinning: true,
     enableColumnDragging: false,
+    enableKeyboardShortcuts: false,
     manualFiltering: true,
     manualPagination: true,
     manualSorting: true,
     muiFilterDateTimePickerProps: {
       ampm: false,
+    },
+    muiPaginationProps: {
+      disabled: isRefetching,
     },
     muiToolbarAlertBannerProps: isError
       ? {
@@ -399,15 +455,31 @@ function TableQueryLogs(): React.JSX.Element {
       }
       : undefined,
     onColumnFilterFnsChange: setColumnFilterFns,
-    onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: (filters) => {
+      pageCursor.current = null;
+      setColumnFilters(filters);
+    },
+    onGlobalFilterChange: (filters: React.SetStateAction<string>) => {
+      pageCursor.current = null;
+      setGlobalFilter(filters);
+    },
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     renderTopToolbarCustomActions: () => (
       <Tooltip arrow title={t("Refresh Data")}>
-        <IconButton onClick={() => refetch()}>
-          <RefreshIcon />
-        </IconButton>
+        <span>
+          <IconButton
+            disabled={isRefetching}
+            onClick={() => {
+              pageCursor.current = null;
+              refetch().catch((_e: unknown) => {
+                // NOOP
+              });
+            }
+            }>
+            <RefreshIcon />
+          </IconButton>
+        </span>
       </Tooltip>
     ),
     renderRowActionMenuItems: ({ closeMenu, row, table }) => {
@@ -429,6 +501,7 @@ function TableQueryLogs(): React.JSX.Element {
     rowCount: meta?.totalRowCount ?? 0,
     initialState: {
       columnVisibility: {
+        'id': false,
         'is_blocked': false,
         'domain_group': false,
         'query_time': false,
@@ -440,6 +513,7 @@ function TableQueryLogs(): React.JSX.Element {
     },
     state: {
       columnFilters,
+      columnFilterFns,
       globalFilter,
       isLoading,
       pagination,
@@ -460,6 +534,8 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
+      gcTime: 0,
+      retry: false,
     },
   },
 });
@@ -500,7 +576,9 @@ export function QueryLogTable(): React.JSX.Element {
       <SnackbarProvider
         anchorOrigin={state}
         maxSnack={5} autoHideDuration={6000}>
-        <TableQueryLogs />
+        <Card>
+          <TableQueryLogs />
+        </Card>
       </SnackbarProvider>
     </QueryClientProvider>
   );

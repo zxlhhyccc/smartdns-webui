@@ -101,12 +101,22 @@ export interface TopClientsResponse {
     client_top_list: TopClients[];
 }
 
-export interface OverViewStats {
+export interface Mertrics {
     cache_hit_rate: number
     cache_number: number,
     avg_query_time: number,
     block_query_count: number,
     total_query_count: number,
+    cache_memory_size: number,
+    is_metrics_suspended: boolean,
+    [key: string]: number | string | boolean,
+}
+
+export interface OverViewStats {
+    server_name: string,
+    db_size: number,
+    startup_timestamp: number,
+    [key: string]: number | string,
 }
 
 export interface TopClients {
@@ -168,6 +178,9 @@ export interface QueryLogsParams {
     timestamp_after?: number;
     is_blocked?: boolean;
     is_cached?: boolean;
+    cursor?: number;
+    cursor_direction?: string;
+    total_count?: number;
     [key: string]: unknown;
 }
 
@@ -178,6 +191,17 @@ export interface HourlyQueryCount {
 
 export interface HourlyQueryCountResponse {
     hourly_query_count: HourlyQueryCount[];
+    query_timestamp: number;
+}
+
+export interface DailyQueryCount {
+    day: string;
+    query_count: number;
+}
+
+export interface DailyQueryCountResponse {
+    daily_query_count: DailyQueryCount[];
+    query_timestamp: number;
 }
 
 export interface LogLevel {
@@ -325,6 +349,18 @@ class SmartDNSAPI {
             getParam = getParam.concat(`is_cached=${param.is_cached}&`);
         }
 
+        if (param.cursor) {
+            getParam = getParam.concat(`cursor=${param.cursor}&`);
+        }
+
+        if (param.cursor_direction) {
+            getParam = getParam.concat(`cursor_direction=${param.cursor_direction}&`);
+        }
+
+        if (param.total_count) {
+            getParam = getParam.concat(`total_count=${param.total_count}&`);
+        }
+
         if (getParam.endsWith('&')) {
             getParam = getParam.slice(0, -1);
         }
@@ -408,7 +444,7 @@ class SmartDNSAPI {
         return ret;
     }
 
-    async GetHourlyQueryCount(): Promise<{ error?: ServerError, data?: HourlyQueryCount[] | null }> {
+    async GetHourlyQueryCount(): Promise<{ error?: ServerError, data?: HourlyQueryCountResponse| null }> {
         const ret = await this.server.fetch<HourlyQueryCountResponse>('/api/stats/hourly-query-count', 'GET', {}, {});
         if (ret.error) {
             return { error: ret.error };
@@ -418,7 +454,20 @@ class SmartDNSAPI {
             return { error: 'No data' };
         }
 
-        return { data: ret.data.hourly_query_count };
+        return { data: ret.data };
+    }
+
+    async GetDailyQueryCount(): Promise<{ error?: ServerError, data?: DailyQueryCountResponse | null }> {
+        const ret = await this.server.fetch<DailyQueryCountResponse>('/api/stats/daily-query-count', 'GET', {}, {});
+        if (ret.error) {
+            return { error: ret.error };
+        }
+
+        if (!ret.data) {
+            return { error: 'No data' };
+        }
+
+        return { data: ret.data };
     }
 
     async GetWhois(domain: string): Promise<{ error?: ServerError, data?: WhoIS | null }> {

@@ -106,7 +106,7 @@ export function UpdatePasswordForm(): React.JSX.Element {
                       label={field.label}
                       type={showPassword ? 'text' : 'password'}
                     />
-                    {errors.oldPassword ? <FormHelperText>{errors.oldPassword.message}</FormHelperText> : null}
+                    {errors[field.name]?.message ? <FormHelperText>{t(errors[field.name]?.message ?? "" as string)}</FormHelperText> : null}
                   </FormControl>
                 )}
               />

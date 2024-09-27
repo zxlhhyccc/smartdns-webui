@@ -1,9 +1,8 @@
-import { experimental_extendTheme as extendTheme } from '@mui/material/styles';
+import { createTheme as MuiCreateTheme, type Theme as MuiTheme } from '@mui/material/styles';
 
 import { colorSchemes } from './color-schemes';
 import { components } from './components/components';
 import { shadows } from './shadows';
-import type { Theme } from './types';
 import { typography } from './typography';
 
 declare module '@mui/material/styles/createPalette' {
@@ -44,9 +43,20 @@ declare module '@mui/material/styles/createPalette' {
     };
   }
 
+  interface DashboardPalette {
+    color: string;
+    chartTotalQueries: string;
+    chartBlockedQueries: string;
+    chartQueryPerSecond: string;
+    chartCacheHitRate: string;
+    chartCacheNumber: string;
+    chartAverageQueryTime: string;
+  }
+
   interface PaletteOptions {
     neutral?: PaletteRange;
     toolbar?: ToolBarPalette;
+    dashboard?: DashboardPalette;
   }
 
   interface TypeBackground {
@@ -56,11 +66,14 @@ declare module '@mui/material/styles/createPalette' {
   }
 }
 
-export function createTheme(): Theme {
-  const theme = extendTheme({
+export function createTheme(): MuiTheme {
+  const theme = MuiCreateTheme({
     breakpoints: { values: { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1440 } },
     components,
     colorSchemes,
+    cssVariables: {
+      colorSchemeSelector: "class"
+    },
     shadows,
     shape: { borderRadius: 8 },
     typography,

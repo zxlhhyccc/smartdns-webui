@@ -4,7 +4,7 @@ import * as React from 'react';
 import Box from '@mui/material/Box';
 import { useTheme, type SxProps } from '@mui/material/styles';
 import { smartdnsServer } from '@/lib/backend/server';
-import type { HourlyQueryCountResponse } from '@/lib/backend/server';
+import type { DailyQueryCountResponse } from '@/lib/backend/server';
 import { useUser } from '@/hooks/use-user';
 import { CardLoading } from './card-loading';
 import { type ActiveElement, Chart, type ChartEvent, registerables } from 'chart.js';
@@ -19,14 +19,14 @@ import { useRouter } from 'next/navigation';
 Chart.register(...registerables);
 Chart.register(annotationPlugin);
 
-export interface HourlyQueryCountProps {
-  queryCount: HourlyQueryCountResponse;
+export interface DailyQueryCountProps {
+  queryCount: DailyQueryCountResponse;
   setTitle: (title: string) => void;
   setTitleAction: (action: React.ReactNode) => void;
   sx?: SxProps;
 }
 
-function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQueryCountProps): React.JSX.Element {
+function DailyQueryCountTable({ queryCount, setTitle, setTitleAction }: DailyQueryCountProps): React.JSX.Element {
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
@@ -35,21 +35,19 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
   const [selectedRange, setSelectedRange] = React.useState<{ start: number, end: number } | null>(null);
 
   React.useEffect(() => {
-    setTitle("Hourly Query Count");
+    setTitle("Daily Query Count");
     setTitleAction(
       <IconButton
         onClick={(): void => {
-          const queryCountList = queryCount.hourly_query_count;
+          const queryCountList = queryCount.daily_query_count;
           const queryTimestamp = queryCount.query_timestamp;
 
           let start = selectedRange?.start ?? -1;
           let end = selectedRange?.end ?? -1;
-
           let includeNextRange = false;
           if (start > end) {
             [start, end] = [end, start];
           }
-
 
           if (start === -1) {
             start = 0;
@@ -63,12 +61,13 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
           if (queryCountList.length === 0) {
             return;
           }
-          
-          const endDate = queryCountList[start].hour;
-          const startDate = queryCountList[end].hour;
 
-          const startTimestamp = new Date(startDate).getTime();
-          let endTimestamp = new Date(endDate).getTime();
+          const endDate = queryCountList[start].day;
+          const startDate = queryCountList[end].day;
+          
+
+          const startTimestamp = new Date(`${startDate} 00:00:00`).getTime();
+          let endTimestamp = new Date(`${endDate} 00:00:00`).getTime();
 
           let totalCount = 0;
           for (let i = end; i > start; i--) {
@@ -81,7 +80,7 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
           }
 
           if (includeNextRange) {
-            endTimestamp += 3600000;
+            endTimestamp += 86400000;
           }
 
           if (endTimestamp > queryTimestamp) {
@@ -89,6 +88,7 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
           }
 
           const url = `${paths.dashboard.queryLog}?timestamp_before=${endTimestamp}&timestamp_after=${startTimestamp}&total_count=${totalCount}`;
+
           router.push(url);
         }}
       >
@@ -123,16 +123,16 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
     <Line
       ref={myChartRef}
       data={{
-        labels: queryCount.hourly_query_count.map((data) => {
-          const date = new Date(data.hour);
-          const hours = date.getHours().toString().padStart(2, '0');
-          const minutes = date.getMinutes().toString().padStart(2, '0');
-          return `${hours}:${minutes}`;
+        labels: queryCount.daily_query_count.map((data) => {
+          const date = new Date(data.day);
+          const moth = (date.getMonth() + 1).toString().padStart(2, '0');
+          const monthDate = date.getDate().toString().padStart(2, '0');
+          return `${moth}-${monthDate}`;
         }),
         datasets: [
           {
             label: t("Query Count"),
-            data: queryCount.hourly_query_count.map((data) => data.query_count),
+            data: queryCount.daily_query_count.map((data) => data.query_count),
             fill: false,
             borderColor: theme.palette.primary.main,
             tension: 0.1,
@@ -146,8 +146,6 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
         scales: {
           x: {
             reverse: true,
-            ticks: {
-            },
           }
         },
         layout: {
@@ -172,7 +170,7 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
                 xMax: selectedRange?.end ?? 0,
                 backgroundColor: 'rgba(30, 30, 30, 0.25)'
               }
-            },
+            }
           },
           tooltip: {
             displayColors: false,
@@ -185,9 +183,9 @@ function HourlyQueryCountTable({ queryCount, setTitle, setTitleAction }: HourlyQ
   </Box>);
 }
 
-export function HourlyQueryCountCard(sx: SxProps): React.JSX.Element {
+export function DailyQueryCountCard(sx: SxProps): React.JSX.Element {
   const { checkSessionError } = useUser();
-  const [queryCount, setQueryCount] = React.useState<HourlyQueryCountResponse | null>(null);
+  const [queryCount, setQueryCount] = React.useState<DailyQueryCountResponse | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const { t } = useTranslation();
@@ -201,7 +199,7 @@ export function HourlyQueryCountCard(sx: SxProps): React.JSX.Element {
         return;
       }
 
-      const data = await smartdnsServer.GetHourlyQueryCount();
+      const data = await smartdnsServer.GetDailyQueryCount();
       if (data.error) {
         await checkSessionError?.(data.error);
         setErrorMsg(smartdnsServer.getErrorMessage(data.error));
@@ -232,7 +230,7 @@ export function HourlyQueryCountCard(sx: SxProps): React.JSX.Element {
       titleAction={titleAction}
       isLoading={loading}
       errorMsg={errorMsg}>
-      {queryCount ? <HourlyQueryCountTable queryCount={queryCount} sx={sx} setTitle={setTitle} setTitleAction={setTitleAction} /> : null}
+      {queryCount ? <DailyQueryCountTable queryCount={queryCount} sx={sx} setTitle={setTitle} setTitleAction={setTitleAction} /> : null}
     </CardLoading>
   </Box>);
 }

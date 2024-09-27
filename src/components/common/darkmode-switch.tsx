@@ -38,6 +38,7 @@ export function DarkModeSwitch(): React.JSX.Element | null {
 
 
   const handleToggleMode = (): void => {
+
     let newMode;
     if (colorMode === 'system') {
       newMode = 'dark';

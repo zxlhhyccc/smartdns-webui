@@ -41,6 +41,7 @@ export function TerminalTable(): React.JSX.Element {
   const [isCtrlPressed, setIsCtrlPressed] = React.useState(false);
   const [isAltPressed, setIsAltPressed] = React.useState(false);
   const { checkSessionError } = useUser();
+  const hasInitialized = React.useRef(false);
   const { t } = useTranslation();
 
   let { user } = useUser();
@@ -136,10 +137,64 @@ export function TerminalTable(): React.JSX.Element {
 
   ];
 
+  const pauseTerm = (): void => {
+    const buffer = new ArrayBuffer(1);
+    const dataview = new DataView(buffer);
+    if (!sockRef.current) {
+      return;
+    }
+
+    if (sockRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    dataview.setUint8(0, 3);
+    sockRef.current.send(buffer);
+  }
+
+  const resumeTerm = (): void => {
+    const buffer = new ArrayBuffer(1);
+    const dataview = new DataView(buffer);
+    if (!sockRef.current) {
+      return;
+    }
+
+    if (sockRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    dataview.setUint8(0, 4);
+    sockRef.current.send(buffer);
+  }
+
+  const setWinSize = (cols: number, rows: number): void => {
+    const buffer = new ArrayBuffer(5);
+    const dataview = new DataView(buffer);
+    if (!sockRef.current) {
+      return;
+    }
+
+    if (sockRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    dataview.setUint8(0, 2);
+    dataview.setUint16(1, cols);
+    dataview.setUint16(3, rows);
+    sockRef.current.send(buffer);
+  }
+
   React.useEffect(() => {
+
     if (displayError.current) {
       return;
     }
+
+    if (hasInitialized.current) {
+      return;
+    }
+
+    hasInitialized.current = true;
 
     const term = new Terminal(
       {
@@ -166,6 +221,10 @@ export function TerminalTable(): React.JSX.Element {
         return;
       }
 
+      if (sockRef.current.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
       let sendData = data;
 
       if (ctrl.current) {
@@ -188,13 +247,10 @@ export function TerminalTable(): React.JSX.Element {
 
     if (user.xtermSocket) {
       const socket = user.xtermSocket as WebSocket;
-      if (socket.readyState === WebSocket.OPEN) {
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         sockRef.current = user.xtermSocket as WebSocket;
         refreshWin = true;
-        if (user.xtermBuff) {
-          term.write(user.xtermBuff as string);
-          user.xtermBuff = null;
-        }
+        resumeTerm();
       } else {
         socket.close();
         user.xtermSocket = null;
@@ -206,6 +262,7 @@ export function TerminalTable(): React.JSX.Element {
       term.write(t('Connecting to xterm server...\r\n'));
       const socket = new WebSocket(`${protocol}://${window.location.host}/api/tool/term`);
       sockRef.current = socket;
+      user.xtermSocket = sockRef.current;
     }
 
     sockRef.current.onmessage = (event: MessageEvent) => {
@@ -254,11 +311,11 @@ export function TerminalTable(): React.JSX.Element {
       term.focus();
       addonfit.fit();
       setWinSize(term.cols, term.rows);
-      user.xtermSocket = sockRef.current;
     };
 
     sockRef.current.onclose = () => {
       term.write(t("Connection closed.\r\n"));
+      sockRef.current = null;
     }
 
     window.addEventListener('resize', () => {
@@ -340,23 +397,6 @@ export function TerminalTable(): React.JSX.Element {
       });
     })
 
-    const setWinSize = (cols: number, rows: number): void => {
-      const buffer = new ArrayBuffer(5);
-      const dataview = new DataView(buffer);
-      if (!sockRef.current) {
-        return;
-      }
-
-      if (sockRef.current.readyState !== WebSocket.OPEN) {
-        return;
-      }
-
-      dataview.setUint8(0, 2);
-      dataview.setUint16(1, cols);
-      dataview.setUint16(3, rows);
-      sockRef.current.send(buffer);
-    }
-
     const refreshWinSize = (): void => {
       if (!termRef.current) {
         return;
@@ -395,6 +435,10 @@ export function TerminalTable(): React.JSX.Element {
         addonfit.fit();
         refreshWinSizeRef.current();
       }
+
+      if (user.xtermBuff) {
+        term.write(user.xtermBuff as Uint8Array);
+      }
     }
 
     const socketSetBackgroupd = (): void => {
@@ -402,10 +446,14 @@ export function TerminalTable(): React.JSX.Element {
         return;
       }
 
-      if (sockRef.current.readyState !== WebSocket.OPEN) {
+      if (sockRef.current.readyState !== WebSocket.OPEN && sockRef.current.readyState !== WebSocket.CONNECTING) {
         sockRef.current.close();
         user.xtermSocket = null;
         return;
+      }
+
+      if (sockRef.current.readyState === WebSocket.OPEN) {
+        pauseTerm();
       }
 
       sockRef.current.onopen = () => {
@@ -433,6 +481,7 @@ export function TerminalTable(): React.JSX.Element {
         user.xtermBuff = strXterm;
       }
       sockRef.current = null;
+      hasInitialized.current = false;
       term.dispose();
     }
   }, [t, checkSessionError, router, user]);

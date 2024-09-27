@@ -21,6 +21,7 @@
     "Dashboard": "仪表盘",
     "Hourly Query Count": "每小时查询次数",
     "Query Count": "查询次数",
+    "Daily Query Count": "每日查询次数",
     "Domain": "域名",
     "Type": "类型",
     "Client": "客户端",
@@ -47,6 +48,7 @@
     "Blocked Query Count": "被阻止的查询次数",
     "Cache Hit Rate": "缓存命中率",
     "Cache Number": "缓存数量",
+    "Query Per Second": "每秒查询次数",
     "Average Query Time": "平均查询时间",
     "Top Clients": "最多查询客户端",
     "Top Domains": "最多查询域名",
@@ -76,6 +78,7 @@
     "Nick Peng. All rights reserved.": "Nick Peng，保留所有权利。",
 
     "Failed to fetch": "获取失败",
+    "Internal Server Error": "内部服务器错误",
     "No data returned.": "没有返回数据。",
     "Not found": "未找到",
     "Cannot find whois.": "找不到 whois。",
@@ -84,19 +87,11 @@
     "Country": "国家",
     "Delete query log {{id}} {{domain}} successfully.": "删除查询日志 {{id}} {{domain}} 成功。",
 
-    "Download SVG": "下载 SVG",
-    "Download PNG": "下载 PNG",
-    "Download CSV": "下载 CSV",
-    "Menu": "菜单",
-    "Selection": "选择",
-    "Selection Zoom": "选择缩放",
-    "Zoom In": "放大",
-    "Zoom Out": "缩小",
-    "Reset Zoom": "重置缩放",
-    "Panning": "平移",
+    "Error: Connection Closed, Reconnecting...": "错误：连接已关闭，正在重新连接...",
 
     "Upstream Servers": "上游服务器",
     "Server": "服务器",
+    "Host": "主机",
     "Port": "端口",
     "Success Rate": "成功率",
     "Status": "状态",
@@ -105,8 +100,11 @@
     "Abnormal": "异常",
     "Avg Time": "平均时间",
     "Total Success Number": "总成功次数",
-    
 
+    "Server request processing has been suspended, please check whether there is enough disk space.": "服务器请求处理已暂停，请检查是否有足够的磁盘空间。",
+
+    "QPS": "查询数",
+    
     "UI Version": "UI 版本",
     "Server Version": "服务器版本"
 }

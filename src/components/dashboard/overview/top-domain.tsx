@@ -37,7 +37,7 @@ function TopDomainsTable({ domains }: TopDomainsProps): React.JSX.Element {
             const encodedDomain = encodeURIComponent(domain.domain);
             return (
               <TableRow key={domain.domain}>
-                <TableCell><Link href={`${paths.dashboard.queryLog}?domain=${encodedDomain}`} >{domain.domain}</Link></TableCell>
+                <TableCell><Link href={`${paths.dashboard.queryLog}?domain=${encodedDomain}&total_count=${domain.query_count}`} >{domain.domain}</Link></TableCell>
                 <TableCell>{domain.query_count}</TableCell>
               </TableRow>
             );

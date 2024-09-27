@@ -8,7 +8,7 @@ import {
   useMaterialReactTable,
   type MRT_ColumnDef as MRTColumnDef,
 } from 'material-react-table';
-import { IconButton, Tooltip, useTheme } from '@mui/material';
+import { Card, IconButton, Tooltip, useTheme } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { type UpStreamServers, smartdnsServer } from '@/lib/backend/server';
 import { useUser } from '@/hooks/use-user';
@@ -106,6 +106,7 @@ function TableUpstreamServers(): React.JSX.Element {
   }
 
   const fetchData = React.useCallback(async (): Promise<void> => {
+    setIsLoading(true);
     const ret = await smartdnsServer.GetUpstreamServers();
     if (ret.error) {
       await checkSessionError?.(ret.error);
@@ -129,6 +130,7 @@ function TableUpstreamServers(): React.JSX.Element {
 
     setData(translatedData);
     setIsError(false);
+    setIsLoading(false);
   }, [checkSessionError, t]);
 
   React.useEffect(() => {
@@ -171,6 +173,7 @@ function TableUpstreamServers(): React.JSX.Element {
     enableColumnFilterModes: false,
     enableColumnPinning: true,
     enableColumnDragging: false,
+    enableKeyboardShortcuts: false,
     enablePagination: false,
     enableGlobalFilterRankedResults: false,
     muiToolbarAlertBannerProps: errorMsg.length > 0
@@ -236,7 +239,9 @@ export function UpstreamServersTable(): React.JSX.Element {
     <SnackbarProvider
       anchorOrigin={state}
       maxSnack={5} autoHideDuration={6000}>
-      <TableUpstreamServers />
+      <Card>
+        <TableUpstreamServers />
+      </Card>
     </SnackbarProvider>
   );
 }

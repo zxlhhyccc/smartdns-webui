@@ -1,0 +1,170 @@
+"use client";
+
+import * as React from 'react';
+import Grid from '@mui/material/Grid2';
+import { MetricsCard } from '@/components/dashboard/overview/metrics-card';
+import { type Mertrics } from '@/lib/backend/server';
+import { StreamLineChart } from './card-stream-linechart';
+import { Alert, Box } from '@mui/material';
+import { size2str } from '@/lib/utils';
+import TravelExploreOutlinedIcon from '@mui/icons-material/TravelExploreOutlined';
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
+import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
+import MemoryOutlinedIcon from '@mui/icons-material/MemoryOutlined';
+import AdsClickOutlinedIcon from '@mui/icons-material/AdsClickOutlined';
+import AvTimerOutlinedIcon from '@mui/icons-material/AvTimerOutlined';
+import { useTranslation } from 'react-i18next';
+
+const totalCards = [
+    {
+        accessor: 'total_query_count',
+        title: 'Total Query Count',
+        bgcolor: 'var(--mui-palette-dashboard-chartTotalQueries)',
+        icon: TravelExploreOutlinedIcon,
+    },
+    {
+        accessor: 'block_query_count',
+        title: 'Blocked Query Count',
+        bgcolor: 'var(--mui-palette-dashboard-chartBlockedQueries)',
+        render: (value: number | string | boolean) => {
+            return <span>{value}</span>
+        },
+        icon: BlockOutlinedIcon,
+    },
+    {
+        accessor: 'qps',
+        title: 'Query Per Second',
+        bgcolor: 'var(--mui-palette-dashboard-chartQueryPerSecond)',
+        render: (value: number | string | boolean, dataIndex: number) => {
+            return <StreamLineChart data={value as number} dataIndex={dataIndex} />
+        },
+        icon: SpeedOutlinedIcon,
+    },
+    {
+        accessor: 'cache_hit_rate',
+        title: 'Cache Hit Rate',
+        bgcolor: 'var(--mui-palette-dashboard-chartCacheHitRate)',
+        render: (value: number | string | boolean) => {
+            return <span>{value}%</span>
+        },
+        icon: AdsClickOutlinedIcon,
+    },
+    {
+        accessor: 'cache_number',
+        title: 'Cache Number',
+        bgcolor: 'var(--mui-palette-dashboard-chartCacheNumber)',
+        render: (value: number | string | boolean, dataIndex: number, cardata: unknown) => {
+            if (!cardata || typeof cardata !== 'object') {
+                return <span>{value}</span>
+            }
+
+            const metrics = cardata as Mertrics;
+            const cacheSize = size2str(metrics?.cache_memory_size ?? "NA");
+            return <Box><Box>{value}</Box>
+                <Box sx={{ fontSize: '1rem' }}>
+                    {cacheSize}
+                </Box>
+            </Box>
+        },
+        icon: MemoryOutlinedIcon,
+    },
+    {
+        accessor: 'avg_query_time',
+        title: 'Average Query Time',
+        bgcolor: 'var(--mui-palette-dashboard-chartAverageQueryTime)',
+        render: (value: number | string | boolean) => {
+            return <span>{value} ms</span>
+        },
+        icon: AvTimerOutlinedIcon,
+    },
+]
+
+export function MetricsCards(): React.JSX.Element {
+    const [cardata, setCardData] = React.useState<Mertrics | null>(null);
+    const [loading, setLoading] = React.useState<boolean>(true);
+    const [dataIndex, setDataIndex] = React.useState<number>(0);
+    const reconnectTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const socketRef = React.useRef<WebSocket | null>(null);
+    const doClose = React.useRef<boolean>(false);
+    const { t } = useTranslation();
+    const [isSuspended, setIsSuspended] = React.useState<boolean>(false);
+
+    function close(): void {
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+        }
+
+        if (socketRef.current) {
+            socketRef.current.close();
+            socketRef.current = null;
+        }
+    }
+
+    const connect = React.useCallback((): void => {
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const socket = new WebSocket(`${protocol}://${window.location.host}/api/stats/metrics`);
+        socketRef.current = socket;
+        socket.onopen = () => {
+            setLoading(false);
+        }
+
+        socket.onmessage = (event: MessageEvent) => {
+            try {
+                const data = JSON.parse(event.data as string) as Mertrics;
+                setDataIndex(prevIndex => prevIndex + 1);
+                setCardData(data);
+                if (isSuspended !== data.is_metrics_suspended) {
+                    setIsSuspended(data.is_metrics_suspended);
+                }
+            } catch (e) {
+                // NOOP
+            }
+        }
+
+        socket.onclose = (_event: CloseEvent) => {
+            if (doClose.current) {
+                doClose.current = false;
+                return;
+            }
+
+            reconnectTimeoutRef.current = setTimeout(function reconnect() {
+                close();
+                connect();
+            }, 3000);
+        }
+    }, [isSuspended]);
+
+    React.useEffect(() => {
+        connect();
+        return (): void => {
+            doClose.current = true;
+            close();
+        }
+    }, [connect]);
+
+    return (
+        <Box>
+            {isSuspended ? <Grid>
+                <Box sx={{ height: '60px' }}>
+                    <Alert severity="error">{t("Server request processing has been suspended, please check whether there is enough disk space.")}</Alert>
+                </Box>
+            </Grid> : null}
+            <Grid container spacing={2} sx={{ height: '100%', width: 'calc(100%)' }}>
+                {totalCards.map((card, _index) => (
+                    <Grid size={{ lg: 4, xl: 2, md: 4, xs: 6 }} key={card.accessor}>
+                        <MetricsCard title={card.title}
+                            isloading={loading}
+                            icon={card.icon}
+                            value={cardata?.[card.accessor] ?? 0}
+                            bgcolor={card.bgcolor}
+                            render={card.render}
+                            dataIndex={dataIndex}
+                            cardata={cardata} />
+                    </Grid>
+                ))
+                }
+            </Grid>
+        </Box>
+    );
+}

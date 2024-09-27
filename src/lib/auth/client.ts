@@ -5,10 +5,35 @@ import { logger } from '@/lib/default-logger';
 import { AuthorError, smartdnsServer } from '../backend/server';
 import type { ServerError } from '../backend/server';
 
-function generateToken(): string {
+interface TokenData {
+  token: string;
+  expiresAt: number;
+}
+
+function generateToken(expirationSeconds: number): string {
   const arr = new Uint8Array(12);
   window.crypto.getRandomValues(arr);
-  return Array.from(arr, (v) => v.toString(16).padStart(2, '0')).join('');
+  const tokenData : TokenData = {
+    token: Array.from(arr, (v) => v.toString(16).padStart(2, '0')).join(''),
+    expiresAt: Date.now() + expirationSeconds * 1000,
+  };
+
+  return JSON.stringify(tokenData);
+}
+
+function getTokenData(token: string): { token?: string, error?: string } {
+  try {
+    const tokenData = JSON.parse(token) as TokenData;
+    const currentTime = Date.now();
+    const expiresAt = Number(tokenData.expiresAt);
+
+    if (currentTime > expiresAt) {
+      return { error: "Token expired" };
+    } 
+    return { token: tokenData.token };
+  } catch (_err: unknown) {
+    return { error: "Token invalid" };
+  }
 }
 
 export interface SignUpParams {
@@ -68,30 +93,37 @@ class AuthClient {
     }
   }
 
-  async signUp(_: SignUpParams): Promise<{ error?: string }> {
-    // Make API request
+  async refreshTokens(): Promise<{ error?: ServerError }> {
+    const { data, error } = await smartdnsServer.RefreshToken();
+    if (error) {
+      return { error };
+    }
 
-    // We do not handle the API, so we'll just generate a token and store it in localStorage.
-    const token = generateToken();
+    let expirationSeconds = Number(data?.expires_in ?? 60 * 10);
+    if (expirationSeconds < 60) {
+      expirationSeconds = 60;
+    }
+
+    const token = generateToken(expirationSeconds);
     localStorage.setItem('custom-auth-token', token);
 
-    return {};
-  }
-
-  async refreshTokens(): Promise<{ error?: ServerError }> {
-    await smartdnsServer.RefreshToken();
     return {};
   }
 
   async signInWithPassword(params: SignInWithPasswordParams): Promise<{ error?: ServerError }> {
     const { username, password } = params;
 
-    const { error } = await smartdnsServer.Login(username, password);
+    const { data, error } = await smartdnsServer.Login(username, password);
     if (error) {
       return { error };
     }
 
-    const token = generateToken();
+    let expirationSeconds = Number(data?.expires_in ?? 60 * 10);
+    if (expirationSeconds < 60) {
+      expirationSeconds = 60;
+    }
+
+    const token = generateToken(expirationSeconds);
     localStorage.setItem('custom-auth-token', token);
     this.user.username = username;
 
@@ -114,6 +146,15 @@ class AuthClient {
     const token = localStorage.getItem('custom-auth-token');
 
     if (!token) {
+      return { data: null };
+    }
+
+    const { error } = getTokenData(token);
+    if (error) {
+      if (error === "Token expired") {
+        await this.signOut();
+        return { data: null };
+      }
       return { data: null };
     }
 
@@ -145,7 +186,7 @@ class AuthClient {
     if (user.error) {
       return { error: user.error };
     }
-  
+
     return {};
   }
 }

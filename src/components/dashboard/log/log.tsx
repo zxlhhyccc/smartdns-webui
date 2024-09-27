@@ -14,7 +14,7 @@ export function LogLevel(): React.JSX.Element {
 
   const { t } = useTranslation();
 
-  const [logLevel, setLogLevel] = React.useState('info');
+  const [logLevel, setLogLevel] = React.useState('');
   const { checkSessionError } = useUser();
   const [errorMsg, setErrorMsg] = React.useState('');
 
@@ -91,11 +91,13 @@ export function Log(): React.JSX.Element {
   const [logText, setLogText] = React.useState('');
   const { checkSessionError } = useUser();
   const router = useRouter();
+  const socketRef = React.useRef<WebSocket | null>(null);
   const { t } = useTranslation();
 
   React.useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const socket = new WebSocket(`${protocol}://${window.location.host}/api/log/stream`);
+    socketRef.current = socket;
 
     const appendLog = (log: string): void => {
       setLogText((prev) => {
@@ -196,7 +198,10 @@ export function Log(): React.JSX.Element {
     }
 
     return () => {
-      socket.close();
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
     }
   }, [t, maxLines, checkSessionError, router]);
 
