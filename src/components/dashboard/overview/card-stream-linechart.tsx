@@ -10,7 +10,7 @@ import i18n from '@/components/core/i18n';
 
 class DrawStreamLine extends React.Component {
   chartItemCount = 60;
-  lineRef: React.RefObject<Chart<'line'>> = React.createRef();
+  lineRef: React.RefObject<Chart<'line'> | null> = React.createRef();
   updateData(data: number): void {
     const chart = this.lineRef.current;
     if (chart === null || chart === undefined) {

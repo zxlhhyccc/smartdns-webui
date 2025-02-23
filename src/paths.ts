@@ -5,6 +5,7 @@ export const paths = {
     dashboard: '/dashboard',
     queryLog: '/dashboard/query-log',
     upstreamServers: '/dashboard/upstream-servers',
+    clients: '/dashboard/clients',
     settings: '/dashboard/settings',
     log: '/dashboard/log',
     term: '/dashboard/term',

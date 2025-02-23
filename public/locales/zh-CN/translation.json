@@ -101,6 +101,8 @@
     "Avg Time": "平均时间",
     "Total Success Number": "总成功次数",
 
+    "Clients": "客户端",
+
     "Server request processing has been suspended, please check whether there is enough disk space.": "服务器请求处理已暂停，请检查是否有足够的磁盘空间。",
 
     "QPS": "查询数",

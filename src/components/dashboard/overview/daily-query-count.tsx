@@ -30,7 +30,7 @@ function DailyQueryCountTable({ queryCount, setTitle, setTitleAction }: DailyQue
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
-  const myChartRef = React.useRef();
+  const myChartRef = React.useRef<Chart<'line'> | null>(null);
   const [isRangeReady, setIsRangeReady] = React.useState(false);
   const [selectedRange, setSelectedRange] = React.useState<{ start: number, end: number } | null>(null);
 

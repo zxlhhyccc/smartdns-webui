@@ -35,9 +35,21 @@ function TopDomainsTable({ domains }: TopDomainsProps): React.JSX.Element {
         <TableBody>
           {domains.map((domain) => {
             const encodedDomain = encodeURIComponent(domain.domain);
+            let url = `${paths.dashboard.queryLog}?domain=${encodedDomain}&total_count=${domain.query_count}`;
+            
+            if (domain.timestamp_start !== undefined && domain.timestamp_start !== null) {
+              url += `&timestamp_after=${domain.timestamp_start}`;
+            }
+
+            if (domain.timestamp_end !== undefined && domain.timestamp_end !== null) {
+              url += `&timestamp_before=${domain.timestamp_end}`;
+            }
+
             return (
               <TableRow key={domain.domain}>
-                <TableCell><Link href={`${paths.dashboard.queryLog}?domain=${encodedDomain}&total_count=${domain.query_count}`} >{domain.domain}</Link></TableCell>
+                <TableCell>
+                  <Link href={url} >{domain.domain}</Link>
+                </TableCell>
                 <TableCell>{domain.query_count}</TableCell>
               </TableRow>
             );

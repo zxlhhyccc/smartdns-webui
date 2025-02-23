@@ -1,15 +1,12 @@
 "use client";
 
 import * as React from 'react';
-import type { Viewport } from 'next';
 
 import '@/styles/global.css';
 
 import { UserProvider } from '@/contexts/user-context';
 import { LocalizationProvider } from '@/components/core/localization-provider';
 import { ThemeProvider } from '@/components/core/theme-provider/theme-provider';
-
-export const viewport = { width: 'device-width', initialScale: 1 } satisfies Viewport;
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,7 +15,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps): React.JSX.Element {
   return (
     <html lang="en">
-      { typeof document !== 'undefined' && document.title ? <head><title>{document.title}</title></head> : null }
+      {typeof document !== 'undefined' && document.title ? <head><title>{document.title}</title></head> : null}
       <body>
         <LocalizationProvider>
           <UserProvider>

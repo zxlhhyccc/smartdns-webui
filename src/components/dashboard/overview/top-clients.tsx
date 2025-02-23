@@ -37,9 +37,18 @@ function TopClientsTable({ clients}: TopClientsProps): React.JSX.Element {
         <TableBody>
           {clients.map((client) => {
             const encodedClient = encodeURIComponent(client.client_ip);
+            let url = `${paths.dashboard.queryLog}?client=${encodedClient}&total_count=${client.query_count}`;
+            
+            if (client.timestamp_start !== undefined && client.timestamp_start !== null) {
+              url += `&timestamp_after=${client.timestamp_start}`;
+            }
+
+            if (client.timestamp_end !== undefined && client.timestamp_end !== null) {
+              url += `&timestamp_before=${client.timestamp_end}`;
+            }
             return (
               <TableRow key={client.client_ip}>
-                <TableCell><Link href={`${paths.dashboard.queryLog}?client=${encodedClient}&total_count=${client.query_count}`} >{client.client_ip}</Link></TableCell>
+                <TableCell><Link href={url} >{client.client_ip}</Link></TableCell>
                 <TableCell>{client.query_count}</TableCell>
               </TableRow>
             );

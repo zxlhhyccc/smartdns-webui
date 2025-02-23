@@ -18,7 +18,6 @@ import {
 } from 'material-react-table';
 import { Card, IconButton, Tooltip, useTheme } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import dayjs from 'dayjs';
 import {
   QueryClient,
   QueryClientProvider,
@@ -26,7 +25,7 @@ import {
   useQuery,
 } from '@tanstack/react-query';
 
-import { type DomainList, type QueryLogsParams, smartdnsServer } from '@/lib/backend/server';
+import { type ClientList, type QueryClientsParams, smartdnsServer } from '@/lib/backend/server';
 import { useUser } from '@/hooks/use-user';
 import { useTranslation } from 'react-i18next';
 import { MRT_Localization_EN } from 'material-react-table/locales/en';
@@ -37,23 +36,16 @@ import { type SnackbarOrigin, SnackbarProvider, useSnackbar } from 'notistack';
 
 
 interface UserApiResponse {
-  data: DomainList[];
+  data: ClientList[];
   meta: {
     totalRowCount: number;
   };
 };
 
-interface PageCursor {
-  pageNumber: number;
-  firstID: number;
-  lastID: number;
-}
-
-
-function TableQueryLogs(): React.JSX.Element {
+function TableClients(): React.JSX.Element {
   const { t } = useTranslation();
 
-  const columns = useMemo<MRTColumnDef<DomainList>[]>(
+  const columns = useMemo<MRTColumnDef<ClientList>[]>(
     () => [
       {
         accessorKey: 'id',
@@ -63,84 +55,38 @@ function TableQueryLogs(): React.JSX.Element {
         columnFilterModeOptions: ['equals'],
       },
       {
-        accessorKey: 'domain',
-        header: t('Domain'),
+        accessorKey: 'client_ip',
+        header: t('Client IP'),
         size: 360,
         enableColumnActions: false,
         columnFilterModeOptions: ['contains', 'equals'],
       },
       {
-        accessorKey: 'domain_type',
-        header: t('Type'),
-        size: 90,
+        accessorKey: 'mac',
+        header: t('Mac Address'),
+        size: 240,
         enableColumnActions: false,
         columnFilterModeOptions: ['equals'],
       },
       {
-        accessorKey: 'client',
-        header: t('Client'),
-        size: 330,
+        accessorKey: 'hostname',
+        header: t('Host Name'),
+        size: 250,
         enableColumnActions: false,
         columnFilterModeOptions: ['equals'],
       },
       {
-        accessorKey: 'timestamp',
-        header: t('Time'),
+        accessorKey: 'last_query_timestamp',
+        header: t('Last Query Time'),
         // eslint-disable-next-line react/no-unstable-nested-components -- ignore
         Cell: ({ cell }) => {
           const timestamp = cell.getValue<string>();
           const localTime = new Date(timestamp).toLocaleString();
           return <span>{localTime}</span>;
         },
-        filterVariant: 'datetime-range',
         columnFilterModeOptions: ['equals'],
         enableColumnActions: false,
         size: 120,
-      },
-      {
-        accessorKey: 'ping_time',
-        header: t('Ping'),
-        size: 90,
-        enableColumnActions: false,
-        // eslint-disable-next-line react/no-unstable-nested-components -- ignore
-        Cell: ({ cell }) => {
-          const pingTime = cell.getValue<number>();
-          if (pingTime < 0) {
-            return <span>N/A</span>;
-          }
-          return <span>{pingTime} ms</span>;
-        },
-        columnFilterModeOptions: ['equals'],
-      },
-      {
-        accessorKey: 'domain_group',
-        header: t('Group'),
-        columnFilterModeOptions: ['equals'],
-        enableColumnActions: false,
-      },
-      {
-        accessorKey: 'is_blocked',
-        header: t('Is Blocked'),
-        size: 150,
-        columnFilterModeOptions: ['equals'],
-        enableColumnActions: false,
-      },
-      {
-        accessorKey: 'query_time',
-        header: t('Query Time'),
-        // eslint-disable-next-line react/no-unstable-nested-components -- ignore
-        Cell: ({ cell }) => {
-          const queryTime = cell.getValue<number>();
-          return <span>{queryTime} ms</span>;
-        },
-        columnFilterModeOptions: ['equals'],
-        enableColumnActions: false,
-      },
-      {
-        accessorKey: 'reply_code',
-        header: t('Reply Code'),
-        columnFilterModeOptions: ['equals'],
-        enableColumnActions: false,
       },
     ],
     [t],
@@ -162,15 +108,10 @@ function TableQueryLogs(): React.JSX.Element {
   const [globalFilter, setGlobalFilter] = useState('');
   const [errorMsg, setErrorMsg] = useState("Error loading data");
   const [sorting, setSorting] = useState<MRTSortingState>([]);
-  const lastPage = React.useRef(0);
-  const pageCursor = React.useRef<PageCursor | null>(null);
   const [pagination, setPagination] = useState<MRTPaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
-  const [totalRowCount, setTotalRowCount] = useState(0);
-  const totalCountFromParams = React.useRef(false);
-
   const [tableLocales, setTableLocales] = useState(MRT_Localization_EN);
   const { enqueueSnackbar } = useSnackbar();
   const isActionAlignRight = React.useRef(false);
@@ -183,45 +124,13 @@ function TableQueryLogs(): React.JSX.Element {
     const searchParams = new URLSearchParams(location.search);
     const filters: MRTColumnFiltersState = [];
 
-    const timestamp: (dayjs.Dayjs | undefined)[] = [undefined, undefined];
-    let existTimestamp = false;
     searchParams.forEach((value, key) => {
-      if (key === 'timestamp_after') {
-        const v = dayjs(Number(value));
-        if (v.isValid()) {
-          timestamp[0] = v;
-          existTimestamp = true;
-        }
-
-        return;
-      }
-
-      if (key === 'timestamp_before') {
-        const v = dayjs(Number(value));
-        if (v.isValid()) {
-          timestamp[1] = v;
-          existTimestamp = true;
-        }
-
-        return;
-      }
-
-      if (key === 'total_count') {
-        totalCountFromParams.current = true;
-        setTotalRowCount(Number(value));
-        return;
-      }
-
       if (columns.findIndex((column) => column.accessorKey === key) === -1) {
         return;
       }
 
       filters.push({ id: key, value });
     });
-
-    if (existTimestamp) {
-      filters.push({ id: 'timestamp', value: timestamp });
-    }
 
     setColumnFilters(filters);
     if (!shouldFetchData) {
@@ -248,61 +157,21 @@ function TableQueryLogs(): React.JSX.Element {
     ],
     queryFn: async () => {
       const currentPageNumber = pagination.pageIndex + 1;
-      const queryParam: QueryLogsParams = {
+      const queryParam: QueryClientsParams = {
         'page_num': currentPageNumber,
         'page_size': pagination.pageSize,
       };
-
-      if (totalCountFromParams.current) {
-        totalCountFromParams.current = false;
-        queryParam['total_count'] = totalRowCount;
-      }
-
-      if (pageCursor.current !== null && pageCursor.current !== undefined) {
-        if (currentPageNumber > lastPage.current && currentPageNumber === lastPage.current + 1) {
-          if (pageCursor.current.lastID >= 0) {
-            queryParam['cursor'] = pageCursor.current.lastID;
-            queryParam['total_count'] = totalRowCount;
-            queryParam['cursor_direction'] = 'next';
-          }
-        } else if (currentPageNumber < lastPage.current && currentPageNumber === lastPage.current - 1) {
-          if (pageCursor.current.firstID >= 0) {
-            queryParam['cursor'] = pageCursor.current.firstID;
-            queryParam['total_count'] = totalRowCount;
-            queryParam['cursor_direction'] = 'prev';
-          }
-        }
-      }
-
-      lastPage.current = currentPageNumber;
 
       columnFilters.forEach(filter => {
         if (filter.id === null || filter.id === undefined || filter.value === null || filter.value === undefined) {
           return;
         }
 
-        const filterMode = columnFilterFns[filter.id];
-        if (filter.id === 'domain' && filterMode === 'contains') {
-          queryParam['domain_filter_mode'] = filterMode as string;
-        }
-
-        if (filter.id === 'timestamp') {
-          const timerange = filter.value as string[];
-          if (timerange.length === 2) {
-            if (timerange[0]) {
-              queryParam['timestamp_after'] = new Date(timerange[0]).getTime();
-            }
-
-            if (timerange[1]) {
-              queryParam['timestamp_before'] = new Date(timerange[1]).getTime();
-            }
-          }
-        }
-        const filterId = filter.id as keyof QueryLogsParams;
+        const filterId = filter.id as keyof QueryClientsParams;
         queryParam[filterId] = filter.value as string;
       });
 
-      const data = await smartdnsServer.GetQueryLogs(queryParam);
+      const data = await smartdnsServer.GetClients(queryParam);
       if (data.error) {
         await checkSessionError?.(data.error);
         setErrorMsg(smartdnsServer.getErrorMessage(data.error));
@@ -314,23 +183,10 @@ function TableQueryLogs(): React.JSX.Element {
         throw new Error(errorMsg);
       }
 
-      let totalCount = 0;
-      if (data.data.total_count > 0 && data.data.domain_list.length > 0) {
-        const newPageCursor: PageCursor = {
-          firstID: data.data.domain_list[0].id,
-          lastID: data.data.domain_list[data.data.domain_list.length - 1].id,
-          pageNumber: currentPageNumber + 1,
-        };
-
-        pageCursor.current = newPageCursor;
-        totalCount = data.data.total_count;
-      }
-
-      setTotalRowCount(totalCount)
       const resp: UserApiResponse = {
-        data: data.data.domain_list,
+        data: data.data.client_list,
         meta: {
-          totalRowCount: totalCount,
+          totalRowCount: data.data.total_count,
         },
       };
 
@@ -351,65 +207,31 @@ function TableQueryLogs(): React.JSX.Element {
     }
   }, []);
 
-  const handleRowWhois = React.useCallback(async (row: MRTRow<DomainList>) => {
-    const domain = row.original.domain;
+  const handleRowClientMacVendor = React.useCallback(async (_row: MRTRow<ClientList>) => {
+    const msg = t('Not implemented yet.');
 
-    const ret = await smartdnsServer.GetWhois(domain);
-    if (ret.error) {
-      enqueueSnackbar(`Error: ${t(smartdnsServer.getErrorMessage(ret.error))}`);
-      return;
-    }
-
-    if (ret.data === null || ret.data === undefined) {
-      enqueueSnackbar(`Error: ${t('No data returned.')}`);
-      return;
-    }
-
-    const whoisData = ret.data;
-    let msg = "";
-    let domainMsg = "";
-    if (whoisData.domain.length > 0) {
-      domainMsg += `${t('Domain')}: ${whoisData.domain}\n`;
-    }
-
-    if (whoisData.organization.length > 0) {
-      msg += `${t('Organization')}: ${whoisData.organization}\n`;
-    }
-
-    if (whoisData.registrar.length > 0) {
-      msg += `${t('Registrar')}: ${whoisData.registrar}\n`;
-    }
-
-    if (whoisData.country.length > 0) {
-      msg += `${t('Country')}: ${whoisData.country}\n`;
-    }
-
-    if (msg.length === 0) {
-      msg = t('Whois data not available');
-    }
-
-    enqueueSnackbar(domainMsg + msg, { style: { whiteSpace: 'pre-line' } });
+    enqueueSnackbar(msg, { style: { whiteSpace: 'pre-line' } });
   }, [t, enqueueSnackbar]);
 
-  const handleRowDelete = React.useCallback(async (row: MRTRow<DomainList>) => {
+  const handleRowDelete = React.useCallback(async (row: MRTRow<ClientList>) => {
     const id = row.original.id;
-    const domain = row.original.domain;
-    const ret = await smartdnsServer.DeleteQueryLogById(id);
+    const clientIP = row.original.client_ip;
+    const ret = await smartdnsServer.DeleteClientById(id);
     if (ret.error) {
       enqueueSnackbar(`${t('Error')}: ${t(smartdnsServer.getErrorMessage(ret.error))}, id: ${id}`, { variant: 'error' });
       return;
     }
 
-    enqueueSnackbar(t('Delete query log {{id}} {{domain}} successfully.', { id, domain }), { variant: 'success' });
+    enqueueSnackbar(t('Delete client {{id}} {{client_ip}} successfully.', { id, clientIP }), { variant: 'success' });
   }, [t, enqueueSnackbar]);
 
-  const renderRowMenuItem = (closeMenu: () => void, row: MRTRow<DomainList>, table: MRTTableInstance<DomainList>): React.ReactNode[] => (
+  const renderRowMenuItem = (closeMenu: () => void, row: MRTRow<ClientList>, table: MRTTableInstance<ClientList>): React.ReactNode[] => (
     [
       <MRTActionMenuItem
         icon={<Domain />}
-        key="whois"
-        label="whois"
-        onClick={async (e) => { e.preventDefault(); closeMenu(); await handleRowWhois(row); }}
+        key="mac_vendor"
+        label="Mac Vendor"
+        onClick={async (e) => { e.preventDefault(); closeMenu(); await handleRowClientMacVendor(row); }}
         table={table}
       />,
       <MRTActionMenuItem
@@ -422,7 +244,7 @@ function TableQueryLogs(): React.JSX.Element {
     ]
   );
 
-  const renderCellMenuItem = (closeMenu: () => void, _cell: MRTCell<DomainList>, row: MRTRow<DomainList>, table: MRTTableInstance<DomainList>): React.ReactNode[] => (
+  const renderCellMenuItem = (closeMenu: () => void, _cell: MRTCell<ClientList>, row: MRTRow<ClientList>, table: MRTTableInstance<ClientList>): React.ReactNode[] => (
     [
       renderRowMenuItem(closeMenu, row, table),
     ]
@@ -468,11 +290,9 @@ function TableQueryLogs(): React.JSX.Element {
       : undefined,
     onColumnFilterFnsChange: setColumnFilterFns,
     onColumnFiltersChange: (filters) => {
-      pageCursor.current = null;
       setColumnFilters(filters);
     },
     onGlobalFilterChange: (filters: React.SetStateAction<string>) => {
-      pageCursor.current = null;
       setGlobalFilter(filters);
     },
     onPaginationChange: setPagination,
@@ -483,7 +303,6 @@ function TableQueryLogs(): React.JSX.Element {
           <IconButton
             disabled={isRefetching}
             onClick={() => {
-              pageCursor.current = null;
               refetch().catch((_e: unknown) => {
                 // NOOP
               });
@@ -512,13 +331,6 @@ function TableQueryLogs(): React.JSX.Element {
     },
     rowCount: meta?.totalRowCount ?? 0,
     initialState: {
-      columnVisibility: {
-        'id': false,
-        'is_blocked': false,
-        'domain_group': false,
-        'query_time': false,
-        'reply_code': false,
-      },
       columnPinning: {
         right: isActionAlignRight?.current ? ['mrt-row-actions'] : [],
       },
@@ -553,7 +365,7 @@ const queryClient = new QueryClient({
 });
 
 
-export function QueryLogTable(): React.JSX.Element {
+export function ClientsTable(): React.JSX.Element {
 
   const [state, setState] = React.useState<SnackbarOrigin>({
     vertical: 'top',
@@ -589,7 +401,7 @@ export function QueryLogTable(): React.JSX.Element {
         anchorOrigin={state}
         maxSnack={5} autoHideDuration={6000}>
         <Card>
-          <TableQueryLogs />
+          <TableClients />
         </Card>
       </SnackbarProvider>
     </QueryClientProvider>

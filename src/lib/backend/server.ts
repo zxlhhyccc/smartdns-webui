@@ -122,11 +122,15 @@ export interface OverViewStats {
 export interface TopClients {
     client_ip: string,
     query_count: number,
+    timestamp_start: number,
+    timestamp_end: number,
 }
 
 export interface TopDomains {
     domain: string,
     query_count: number,
+    timestamp_start: number,
+    timestamp_end: number,
 }
 
 export interface LoginToken {
@@ -151,6 +155,19 @@ export interface DomainList {
     query_time: number,
     reply_code: number,
     timestamp: number,
+}
+
+export interface ClientList {
+    id: number,
+    client_ip: string,
+    mac: string,
+    hostname: string,
+    last_query_timestamp: number,
+}
+
+export interface ClientListResponse {
+    client_list: ClientList[];
+    total_count: number;
 }
 
 export interface CacheNumber {
@@ -181,6 +198,17 @@ export interface QueryLogsParams {
     cursor?: number;
     cursor_direction?: string;
     total_count?: number;
+    [key: string]: unknown;
+}
+
+export interface QueryClientsParams {
+    id?: number;
+    page_num?: number;
+    page_size?: number;
+    client_ip?: string;
+    mac?: string;
+    hostname?: string;
+    last_query_timestamp?: number;
     [key: string]: unknown;
 }
 
@@ -285,8 +313,43 @@ class SmartDNSAPI {
         return this.server.fetch<null>('/api/log/level', 'PUT', {}, { "log_level": level });
     }
 
+    async DeleteClientById(id: number): Promise<{ error?: ServerError }> {
+        return this.server.fetch<null>(`/api/client/${id}`, 'DELETE', {}, {});
+    }
+
     async DeleteQueryLogById(id: number): Promise<{ error?: ServerError }> {
         return this.server.fetch<null>(`/api/domain/${id}`, 'DELETE', {}, {});
+    }
+
+    async GetClients(param: QueryClientsParams): Promise<{ error?: ServerError, data?: ClientListResponse | null }> {
+        let getParam = "";
+
+        if (param.id) {
+            getParam = getParam.concat(`id=${param.id}&`);
+        }
+
+        if (param.client_ip) {
+            getParam = getParam.concat(`client_ip=${param.client_ip}&`);
+        }
+
+        if (param.mac) {
+            getParam = getParam.concat(`mac=${param.mac}&`);
+        }
+
+        if (param.hostname) {
+            getParam = getParam.concat(`hostname=${param.hostname}&`);
+        }
+
+        if (param.last_query_timestamp) {
+            getParam = getParam.concat(`last_query_timestamp=${param.last_query_timestamp}&`);
+        }
+
+        if (getParam.endsWith('&')) {
+            getParam = getParam.slice(0, -1);
+        }
+
+        const ret = await this.server.fetch<ClientListResponse>(`/api/client?${getParam}`, 'GET', {}, {});
+        return ret;
     }
 
     async GetQueryLogs(param: QueryLogsParams): Promise<{ error?: ServerError, data?: QueryLogs | null }> {
