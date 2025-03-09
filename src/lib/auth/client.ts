@@ -13,7 +13,7 @@ interface TokenData {
 function generateToken(expirationSeconds: number): string {
   const arr = new Uint8Array(12);
   window.crypto.getRandomValues(arr);
-  const tokenData : TokenData = {
+  const tokenData: TokenData = {
     token: Array.from(arr, (v) => v.toString(16).padStart(2, '0')).join(''),
     expiresAt: Date.now() + expirationSeconds * 1000,
   };
@@ -29,7 +29,7 @@ function getTokenData(token: string): { token?: string, error?: string } {
 
     if (currentTime > expiresAt) {
       return { error: "Token expired" };
-    } 
+    }
     return { token: tokenData.token };
   } catch (_err: unknown) {
     return { error: "Token invalid" };
@@ -55,7 +55,7 @@ export interface ResetPasswordParams {
 class AuthClient {
   private refreshTokenIntervalId: NodeJS.Timeout | null = null;
   private refreshTokenInterval: number = 1000 * 60;
-  private user: User = { id: "" };
+  private user: User = { id: "", sideNavVisibility: new Map<string, boolean>() };
   private isLogin = false;
 
   constructor() {
@@ -72,6 +72,7 @@ class AuthClient {
     }
 
     this.isLogin = true;
+    this.loadUserSettings();
     logger.debug('[AuthClient]: start refresh token.');
     this.refreshTokenIntervalId = setInterval(() => {
       this.refreshTokens().catch(async (_err: unknown) => {
@@ -142,6 +143,24 @@ class AuthClient {
     return { error: 'Update reset not implemented' };
   }
 
+  saveUserSettings(): void {
+    localStorage.setItem('side-nav-visibility', JSON.stringify(Array.from(this.user.sideNavVisibility.entries())));
+  }
+
+  loadUserSettings(): void {
+    const sideNavVisibility = localStorage.getItem('side-nav-visibility');
+    if (sideNavVisibility) {
+      try {
+        const parsedVisibility: unknown = JSON.parse(sideNavVisibility);
+        if (Array.isArray(parsedVisibility)) {
+          this.user.sideNavVisibility = new Map<string, boolean>(parsedVisibility);
+        }
+      } catch (_err: unknown) {
+        // NOOP
+      }
+    }
+  }
+
   async getUser(): Promise<{ data?: User | null; error?: string }> {
     const token = localStorage.getItem('custom-auth-token');
 
@@ -168,9 +187,12 @@ class AuthClient {
       const _result = await smartdnsServer.Logout();
       logger.debug('[AuthClient]: signOut');
     }
+    localStorage.removeItem('side-nav-visibility');
     this.stopRefreshTokenInterval();
     this.user.id = "";
+    this.user.username = "";
     this.isLogin = false;
+    this.user.sideNavVisibility = new Map<string, boolean>();
     return {};
   }
 

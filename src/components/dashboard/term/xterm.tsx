@@ -51,6 +51,7 @@ export function TerminalTable(): React.JSX.Element {
     displayError.current = true;
     user = {
       id: '',
+      sideNavVisibility: new Map<string, boolean>(),
     };
   }
 

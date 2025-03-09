@@ -5,6 +5,8 @@ export interface FetchResponse<T> {
     data?: T | null;
 }
 
+export type Settings = Record<string, unknown>;
+
 export class AuthorError extends Error {
     constructor(message: string) {
         super(message);
@@ -471,8 +473,8 @@ class SmartDNSAPI {
         return { data: ret.data.domain_top_list };
     }
 
-    async GetSettings(): Promise<{ error?: ServerError, data?: Map<string, string> | null }> {
-        const ret = await this.server.fetch<Map<string, string>>('/api/config/settings', 'GET', {}, {});
+    async GetSettings(): Promise<{ error?: ServerError, data?: Settings | null }> {
+        const ret = await this.server.fetch<Settings>('/api/config/settings', 'GET', {}, {});
 
         if (ret.error) {
             return { error: ret.error };
@@ -507,7 +509,7 @@ class SmartDNSAPI {
         return ret;
     }
 
-    async GetHourlyQueryCount(): Promise<{ error?: ServerError, data?: HourlyQueryCountResponse| null }> {
+    async GetHourlyQueryCount(): Promise<{ error?: ServerError, data?: HourlyQueryCountResponse | null }> {
         const ret = await this.server.fetch<HourlyQueryCountResponse>('/api/stats/hourly-query-count', 'GET', {}, {});
         if (ret.error) {
             return { error: ret.error };

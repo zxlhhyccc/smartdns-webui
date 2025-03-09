@@ -16,6 +16,7 @@ import { Logo } from '@/components/core/logo';
 import { navItems } from './config';
 import { navIcons } from './nav-icons';
 import { useTranslation } from 'react-i18next';
+import { useUser } from '@/hooks/use-user';
 
 type OnActiveItemType = (item: NavItemConfig) => void;
 
@@ -23,7 +24,7 @@ export interface SideNavProps {
   onActiveItem?: OnActiveItemType;
 }
 
-export function SideNav({onActiveItem} : SideNavProps): React.JSX.Element {
+export function SideNav({ onActiveItem }: SideNavProps): React.JSX.Element {
   const pathname = usePathname();
 
   return (
@@ -56,8 +57,8 @@ export function SideNav({onActiveItem} : SideNavProps): React.JSX.Element {
         '&::-webkit-scrollbar': { display: 'none' },
       }}
     >
-      <Stack spacing={2} sx={{ p: 3, alignItems: 'center'}} direction="row" >
-        <Box component={RouterLink} href={paths.home} 
+      <Stack spacing={2} sx={{ p: 3, alignItems: 'center' }} direction="row" >
+        <Box component={RouterLink} href={paths.home}
           sx={{ display: 'inline-flex' }}>
           <Logo color="light" height={64} width={64} />
         </Box>
@@ -72,15 +73,21 @@ export function SideNav({onActiveItem} : SideNavProps): React.JSX.Element {
   );
 }
 
-function RenderNavItems({ onActiveItem, items = [], pathname}: { onActiveItem? : OnActiveItemType; items?: NavItemConfig[]; pathname: string }): React.JSX.Element {
+function RenderNavItems({ onActiveItem, items = [], pathname }: { onActiveItem?: OnActiveItemType; items?: NavItemConfig[]; pathname: string }): React.JSX.Element {
   const { t } = useTranslation();
-  
+  const { user } = useUser();
+
   const children = items.reduce((acc: React.ReactNode[], curr: NavItemConfig): React.ReactNode[] => {
     const { key, title = "", ...item } = curr;
 
+    if (user && user.sideNavVisibility.has(key) && user.sideNavVisibility.get(key) !== true) {
+      acc.push(null);
+      return acc;
+    }
+
     acc.push(<NavItem key={key} pathname={pathname} title={t(title)} {...item} />);
 
-    const { disabled, external, href, matcher} = curr;
+    const { disabled, external, href, matcher } = curr;
     const active = isNavItemActive({ disabled, external, href, matcher, pathname });
     if (active && onActiveItem && curr) {
       onActiveItem(curr);
@@ -109,11 +116,11 @@ function NavItem({ disabled, external, href, icon, matcher, pathname, title }: N
       <Box
         {...(href
           ? {
-              component: external ? 'a' : RouterLink,
-              href,
-              target: external ? '_blank' : undefined,
-              rel: external ? 'noreferrer' : undefined,
-            }
+            component: external ? 'a' : RouterLink,
+            href,
+            target: external ? '_blank' : undefined,
+            rel: external ? 'noreferrer' : undefined,
+          }
           : { role: 'button' })}
         sx={{
           alignItems: 'center',
@@ -136,7 +143,7 @@ function NavItem({ disabled, external, href, icon, matcher, pathname, title }: N
         }}
       >
         <Box sx={{ alignItems: 'center', display: 'flex', justifyContent: 'center', flex: '0 0 auto' }}>
-          {Icon ? (<Icon/>) : null}
+          {Icon ? (<Icon />) : null}
         </Box>
         <Box sx={{ flex: '1 1 auto' }}>
           <Typography

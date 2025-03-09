@@ -17,6 +17,7 @@ import { Logo } from '@/components/core/logo';
 import { navItems } from './config';
 import { navIcons } from './nav-icons';
 import { useTranslation } from 'react-i18next';
+import { useUser } from '@/hooks/use-user';
 
 type OnActiveItemType = (item: NavItemConfig | null) => void;
 
@@ -28,7 +29,7 @@ export interface MobileNavProps {
   items?: NavItemConfig[];
 }
 
-export function MobileNav({ open, onClose, onActiveItem, OnClickItem}: MobileNavProps): React.JSX.Element {
+export function MobileNav({ open, onClose, onActiveItem, OnClickItem }: MobileNavProps): React.JSX.Element {
   const pathname = usePathname();
 
   return (
@@ -59,7 +60,7 @@ export function MobileNav({ open, onClose, onActiveItem, OnClickItem}: MobileNav
       onClose={onClose}
       open={open}
     >
-      <Stack spacing={2} sx={{ p: 2, alignItems: 'center'}} direction="row" >
+      <Stack spacing={2} sx={{ p: 2, alignItems: 'center' }} direction="row" >
         <Box component={RouterLink} href={paths.home} sx={{ display: 'inline-flex' }}>
           <Logo color="light" height={64} width={64} />
         </Box>
@@ -67,22 +68,27 @@ export function MobileNav({ open, onClose, onActiveItem, OnClickItem}: MobileNav
       </Stack>
       <Divider sx={{ borderColor: 'var(--mui-palette-divider)' }} />
       <Box component="nav" sx={{ flex: '1 1 auto', p: '12px' }}>
-        <RenderNavItems onActiveItem = {onActiveItem} OnClickItem={OnClickItem} pathname={pathname} items={navItems} />
+        <RenderNavItems onActiveItem={onActiveItem} OnClickItem={OnClickItem} pathname={pathname} items={navItems} />
       </Box>
       <Divider sx={{ borderColor: 'var(--mui-palette-divider)' }} />
     </Drawer>
   );
 }
 
-function RenderNavItems( { onActiveItem, OnClickItem, items = [], pathname }: { onActiveItem? : OnActiveItemType; OnClickItem? : OnActiveItemType;  items?: NavItemConfig[]; pathname: string }): React.JSX.Element {
+function RenderNavItems({ onActiveItem, OnClickItem, items = [], pathname }: { onActiveItem?: OnActiveItemType; OnClickItem?: OnActiveItemType; items?: NavItemConfig[]; pathname: string }): React.JSX.Element {
   const { t } = useTranslation();
+  const { user } = useUser();
 
   const children = items.reduce((acc: React.ReactNode[], curr: NavItemConfig): React.ReactNode[] => {
     const { key, title = '', ...item } = curr;
 
-    acc.push(<NavItem OnClickItem={OnClickItem} key={key} pathname={pathname} title={t(title)} {...item} />);
+    if (user && user.sideNavVisibility.has(key) && user.sideNavVisibility.get(key) !== true) {
+      acc.push(null);
+      return acc;
+    }
 
-    const { disabled, external, href, matcher} = curr;
+    acc.push(<NavItem OnClickItem={OnClickItem} key={key} pathname={pathname} title={t(title)} {...item} />);
+    const { disabled, external, href, matcher } = curr;
     const active = isNavItemActive({ disabled, external, href, matcher, pathname });
     if (active && onActiveItem) {
       onActiveItem(curr);
@@ -103,7 +109,7 @@ interface NavItemProps extends Omit<NavItemConfig, 'items'> {
   pathname: string;
 }
 
-function NavItem(props:NavItemProps): React.JSX.Element {
+function NavItem(props: NavItemProps): React.JSX.Element {
   const { OnClickItem, disabled, external, href, icon, matcher, pathname, title }: NavItemProps = props;
   const active = isNavItemActive({ disabled, external, href, matcher, pathname });
   const Icon = icon ? navIcons[icon] : null;
@@ -111,54 +117,54 @@ function NavItem(props:NavItemProps): React.JSX.Element {
   return (
     <li>
       <div>
-      <Box
-        {...(href
-          ? {
+        <Box
+          {...(href
+            ? {
               component: external ? 'a' : RouterLink,
               href,
               target: external ? '_blank' : undefined,
               rel: external ? 'noreferrer' : undefined,
             }
-          : { role: 'button' })}
+            : { role: 'button' })}
           onClick={() => {
             if (OnClickItem) {
               OnClickItem(props as NavItemConfig);
             }
           }}
-        sx={{
-          alignItems: 'center',
-          borderRadius: 1,
-          color: 'var(--NavItem-color)',
-          cursor: 'pointer',
-          display: 'flex',
-          flex: '0 0 auto',
-          gap: 1,
-          p: '6px 16px',
-          position: 'relative',
-          textDecoration: 'none',
-          whiteSpace: 'nowrap',
-          ...(disabled && {
-            bgcolor: 'var(--NavItem-disabled-background)',
-            color: 'var(--NavItem-disabled-color)',
-            cursor: 'not-allowed',
-          }),
-          ...(active && { bgcolor: 'var(--NavItem-active-background)', color: 'var(--NavItem-active-color)' }),
-        }}
-      >
-        <Box sx={{ alignItems: 'center', display: 'flex', justifyContent: 'center', flex: '0 0 auto' }}>
-          {Icon ? (
-            <Icon/>
-          ) : null}
+          sx={{
+            alignItems: 'center',
+            borderRadius: 1,
+            color: 'var(--NavItem-color)',
+            cursor: 'pointer',
+            display: 'flex',
+            flex: '0 0 auto',
+            gap: 1,
+            p: '6px 16px',
+            position: 'relative',
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+            ...(disabled && {
+              bgcolor: 'var(--NavItem-disabled-background)',
+              color: 'var(--NavItem-disabled-color)',
+              cursor: 'not-allowed',
+            }),
+            ...(active && { bgcolor: 'var(--NavItem-active-background)', color: 'var(--NavItem-active-color)' }),
+          }}
+        >
+          <Box sx={{ alignItems: 'center', display: 'flex', justifyContent: 'center', flex: '0 0 auto' }}>
+            {Icon ? (
+              <Icon />
+            ) : null}
+          </Box>
+          <Box sx={{ flex: '1 1 auto' }}>
+            <Typography
+              component="span"
+              sx={{ color: 'inherit', fontSize: '0.875rem', fontWeight: 500, lineHeight: '28px' }}
+            >
+              {title}
+            </Typography>
+          </Box>
         </Box>
-        <Box sx={{ flex: '1 1 auto' }}>
-          <Typography
-            component="span"
-            sx={{ color: 'inherit', fontSize: '0.875rem', fontWeight: 500, lineHeight: '28px' }}
-          >
-            {title}
-          </Typography>
-        </Box>
-      </Box>
       </div>
     </li>
   );

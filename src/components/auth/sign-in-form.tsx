@@ -18,7 +18,7 @@ import { z as zod } from 'zod';
 import { authClient } from '@/lib/auth/client';
 import { useUser } from '@/hooks/use-user';
 import { Logo } from '../core/logo';
-import { smartdnsServer } from '@/lib/backend/server';
+import { type Settings, smartdnsServer } from '@/lib/backend/server';
 import { VisibilityOutlined, VisibilityOffOutlined } from '@mui/icons-material';
 
 const schema = zod.object({
@@ -29,6 +29,17 @@ const schema = zod.object({
 type Values = zod.infer<typeof schema>;
 
 const defaultValues = { username: 'admin', password: 'password' } satisfies Values;
+
+async function setupUserSettings(settings: Settings): Promise<void> {
+  const user = await authClient.getUser();
+  if (user.data && settings) {
+    if (settings?.enable_terminal !== 'true') {
+      user.data.sideNavVisibility.set('term', false);
+    }
+
+    authClient.saveUserSettings();
+  }
+}
 
 export function SignInForm(): React.JSX.Element {
   const { t } = useTranslation();
@@ -54,6 +65,14 @@ export function SignInForm(): React.JSX.Element {
         setIsPending(false);
         return;
       }
+
+      await smartdnsServer.GetSettings().then(async (settings) => {
+        if (settings.data) {
+          await setupUserSettings(settings.data);
+        }
+      }).catch((_err: unknown) => {
+        // NOOP
+      });
 
       // Refresh the auth state
       await checkSession?.();
