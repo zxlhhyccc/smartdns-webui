@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from 'react';
@@ -23,6 +22,20 @@ function TableUpstreamServers(): React.JSX.Element {
   const [data, setData] = useState<UpStreamServers[]>([]);
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const COLUMN_VISIBILITY_KEY = 'upstream-servers-table-column-visibility';
+  const savedColumnVisibility = localStorage.getItem(COLUMN_VISIBILITY_KEY);
+  let jsonParsedColumnVisibility: Record<string, boolean> = {};
+  try {
+    if (savedColumnVisibility) {
+      jsonParsedColumnVisibility = JSON.parse(savedColumnVisibility) as Record<string, boolean>;
+    }
+  } catch (e) {
+    localStorage.removeItem(COLUMN_VISIBILITY_KEY);
+    jsonParsedColumnVisibility = {};
+  }
+  const initialColumnVisibility = jsonParsedColumnVisibility ? jsonParsedColumnVisibility : {};
+  const [columnVisibility, setColumnVisibility] = React.useState(initialColumnVisibility);
 
   const columns = useMemo<MRTColumnDef<UpStreamServers>[]>(
     () => [
@@ -189,13 +202,23 @@ function TableUpstreamServers(): React.JSX.Element {
         </IconButton>
       </Tooltip>
     ),
+    onColumnVisibilityChange: (updaterOrValue) => {
+      const newVisibility =
+        typeof updaterOrValue === 'function'
+          ? updaterOrValue(columnVisibility)
+          : updaterOrValue;
+      setColumnVisibility(newVisibility);
+      localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(newVisibility));
+    },
     initialState: {
       showGlobalFilter: true,
+      columnVisibility,
     },
     state: {
       showAlertBanner: isError,
       showProgressBars: isLoading,
       showSkeletons: isLoading,
+      columnVisibility,
     },
     mrtTheme: (_theme) => ({
       baseBackgroundColor,
