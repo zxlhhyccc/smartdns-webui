@@ -1,5 +1,3 @@
-/* eslint-disable import/named -- The named imports from '@xterm/*' are correct but ESLint is unable to resolve them */
-
 "use client";
 
 import * as React from 'react';
@@ -14,6 +12,12 @@ import SpeedDial from '@mui/material/SpeedDial';
 import "@xterm/xterm/css/xterm.css";
 import KeyboardOptionKeyIcon from '@mui/icons-material/KeyboardOptionKey';
 import TransitEnterexitIcon from '@mui/icons-material/TransitEnterexit';
+
+// Move getCtrlChar to outer scope for unicorn/consistent-function-scoping
+const getCtrlChar = (char: string): string => {
+  const code = char.toUpperCase().codePointAt(0) ?? 0;
+  return String.fromCodePoint(code - 64);
+};
 
 import {
   KeyboardControlKey as CtrlIcon,
@@ -90,11 +94,6 @@ export function TerminalTable(): React.JSX.Element {
     };
   }, []);
 
-  const getCtrlChar = (char: string): string => {
-    const code = char.toUpperCase().charCodeAt(0);
-    return String.fromCharCode(code - 64);
-  };
-
   const actions = [
     {
       icon: <SelectAll />, name: t('SELECT ALL'), action: () => {
@@ -132,7 +131,7 @@ export function TerminalTable(): React.JSX.Element {
           return;
         }
 
-        sockRef.current.send('\x1b');
+        sockRef.current.send('\u001B');
       },
     }
 
@@ -235,7 +234,7 @@ export function TerminalTable(): React.JSX.Element {
       }
 
       if (alt.current) {
-        sockRef.current.send('\x1b');
+        sockRef.current.send('\u001B');
         alt.current = false;
         setIsAltPressed(false);
       }
@@ -296,12 +295,12 @@ export function TerminalTable(): React.JSX.Element {
     sockRef.current.onerror = () => {
       authClient.checkLogin().then((data) => {
         if (data.error && checkSessionError) {
-          checkSessionError(data.error).catch((_err: unknown) => {
+          checkSessionError(data.error).catch((_error: unknown) => {
             //NOOP
           });
           router.refresh();
         }
-      }).catch((_err: unknown) => {
+      }).catch((_error: unknown) => {
         //NOOP
       });
     }
