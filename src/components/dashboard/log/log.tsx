@@ -2,7 +2,7 @@
 
 import { Alert, Box, Button, Card, MenuItem, Select, type SelectChangeEvent } from '@mui/material';
 import * as React from 'react';
-import { LazyLog, ScrollFollow } from "@melloware/react-logviewer";
+import { LazyLog } from "@melloware/react-logviewer";
 import { authClient } from '@/lib/auth/client';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
@@ -14,7 +14,7 @@ export interface LogLevelProps {
   onLogLevelChange?: (level: string) => void;
 }
 
-export function LogLevel( {onLogLevelChange} : LogLevelProps): React.JSX.Element {
+export function LogLevel({ onLogLevelChange }: LogLevelProps): React.JSX.Element {
 
   const { t } = useTranslation();
 
@@ -85,8 +85,9 @@ export function Log(): React.JSX.Element {
   const logEndRef = React.useRef<HTMLDivElement>(null);
   const controlLogRef = React.useRef<((event: number, data: string) => void) | null>(null);
   const [isPaused, setIsPaused] = React.useState(false);
-  const [maxLines, setMaxLines] = React.useState(1000);
+  const [maxLines, setMaxLines] = React.useState(2000);
   const [logText, setLogText] = React.useState('');
+  const [autoFollow, setAutoFollow] = React.useState(true);
   const { checkSessionError } = useUser();
   const router = useRouter();
   const socketRef = React.useRef<WebSocket | null>(null);
@@ -242,11 +243,26 @@ export function Log(): React.JSX.Element {
     };
   }, []);
 
-  const handleClearLog = () : void => {
+  const handleClearLog = (): void => {
     if (logRef.current) {
       logRef.current.clear();
     }
     setLogText('');
+  };
+
+  const handleCopyLog = async (): Promise<void> => {
+    try {
+      if (logText) {
+        await navigator.clipboard.writeText(logText);
+      }
+    } catch {
+      const textArea = document.createElement('textarea');
+      textArea.value = logText;
+      document.body.append(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      textArea.remove();
+    }
   };
 
   const handleButtonClick = (): void => {
@@ -274,13 +290,17 @@ export function Log(): React.JSX.Element {
           <Button variant="contained"
             onClick={() => { handleClearLog(); }}
           >{t('Clear')}</Button>
-          <LogLevel onLogLevelChange={ 
+          <Button variant="contained"
+            onClick={() => { handleCopyLog(); }}
+            disabled={!logText.trim()}
+          >{t('Copy')}</Button>
+          <LogLevel onLogLevelChange={
             (level: string) => {
               if (controlLogRef.current) {
                 controlLogRef.current(3, level);
               }
             }
-          }/>
+          } />
         </Stack>
       </Box>
       <Box ref={textRef}
@@ -293,15 +313,28 @@ export function Log(): React.JSX.Element {
           padding: '1rem',
         }}
       >
-        <ScrollFollow
-          startFollowing
-          render={({ follow, onScroll }) => (
-            <LazyLog
-              ref={logRef}
-              enableSearch
-              enableHotKeys
-              text={logText} follow={follow} onScroll={onScroll} />
-          )}
+        <LazyLog
+          ref={logRef}
+          enableSearch
+          enableHotKeys
+          text={logText}
+          follow={autoFollow}
+          onScroll={(scrollInfo) => {
+            const { scrollTop, scrollHeight, clientHeight } = scrollInfo;
+            const isAtBottom = scrollHeight - scrollTop - clientHeight < 10;
+
+            if (isAtBottom) {
+              setAutoFollow(true);
+            } else {
+              setAutoFollow(false);
+            }
+          }}
+          style={{
+            height: '100%',
+            width: '100%',
+            fontFamily: 'monospace',
+            fontSize: '13px'
+          }}
         />
       </Box>
     </Card>
