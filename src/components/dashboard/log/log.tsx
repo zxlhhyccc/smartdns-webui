@@ -84,6 +84,7 @@ export function Log(): React.JSX.Element {
   const textRef = React.useRef<HTMLDivElement>(null);
   const logEndRef = React.useRef<HTMLDivElement>(null);
   const controlLogRef = React.useRef<((event: number, data: string) => void) | null>(null);
+  const [logType, setLogType] = React.useState('runlog');
   const [isPaused, setIsPaused] = React.useState(false);
   const [maxLines, setMaxLines] = React.useState(2000);
   const [logText, setLogText] = React.useState('');
@@ -95,7 +96,14 @@ export function Log(): React.JSX.Element {
 
   React.useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/api/log/stream`);
+    let api_url = `${protocol}://${window.location.host}/api/log/stream`;
+    let log_type_message = t('Run Log');
+    if (logType === "auditlog") {
+      api_url = `${protocol}://${window.location.host}/api/log/audit/stream`;
+      log_type_message = t('Audit Log');
+    }
+
+    const socket = new WebSocket(api_url);
     socketRef.current = socket;
 
     const appendLog = (log: string): void => {
@@ -110,14 +118,18 @@ export function Log(): React.JSX.Element {
 
     const processMessage = (data: ArrayBuffer): void => {
       const dataview = new DataView(data);
+      let messageOffset = 1;
       if (dataview.byteLength < 2) {
         return;
       }
       const type = dataview.getUint8(0);
-      const _logLevel = dataview.getUint8(1);
+      if (logType === "runlog") {
+        const _logLevel = dataview.getUint8(1);
+        messageOffset = 2;
+      }
       switch (type) {
         case 0: {
-          const msgStr = new TextDecoder().decode(data.slice(2));
+          const msgStr = new TextDecoder().decode(data.slice(messageOffset));
           for (const line of msgStr.split('\n')) {
             if (line.length <= 0) {
               continue;
@@ -159,7 +171,7 @@ export function Log(): React.JSX.Element {
     }
     controlLogRef.current = controlLog;
 
-    appendLog(t('Connecting to log stream....\n'));
+    appendLog(t('Connecting to {{logtype}} stream....\n', { logtype: log_type_message }));
 
     socket.onmessage = (event: MessageEvent) => {
       let data: ArrayBuffer;
@@ -187,7 +199,7 @@ export function Log(): React.JSX.Element {
     };
 
     socket.onopen = () => {
-      appendLog(t('Connected to log stream.\n'));
+      appendLog(t('Connected to {{logtype}} stream.\n', { logtype: log_type_message }));
       setMaxLines(1000);
     };
 
@@ -206,7 +218,7 @@ export function Log(): React.JSX.Element {
     }
 
     socket.onclose = () => {
-      appendLog(t('Disconnected from log stream.\n'));
+      appendLog(t('Disconnected from {{logtype}} stream.\n', { logtype: log_type_message }));
     }
 
     return () => {
@@ -215,7 +227,7 @@ export function Log(): React.JSX.Element {
         socketRef.current = null;
       }
     }
-  }, [t, maxLines, checkSessionError, router]);
+  }, [t, maxLines, logType, checkSessionError, router]);
 
   React.useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -283,6 +295,16 @@ export function Log(): React.JSX.Element {
         marginLeft: '20px',
       }}>
         <Stack direction="row" spacing={2}>
+          <Select
+            value={logType}
+            size="small"
+            onChange={(event: SelectChangeEvent) => {
+              setLogType(event.target.value);
+            }}
+          >
+            <MenuItem value="runlog">{t('Run Log')}</MenuItem>
+            <MenuItem value="auditlog">{t('Audit Log')}</MenuItem>
+          </Select>
           <Button variant="contained"
             onClick={() => { handleButtonClick(); }}
             color={isPaused ? 'secondary' : 'primary'}
@@ -294,13 +316,14 @@ export function Log(): React.JSX.Element {
             onClick={() => { handleCopyLog(); }}
             disabled={!logText.trim()}
           >{t('Copy')}</Button>
-          <LogLevel onLogLevelChange={
+          {logType === "runlog" && (<LogLevel onLogLevelChange={
             (level: string) => {
               if (controlLogRef.current) {
                 controlLogRef.current(3, level);
               }
             }
           } />
+          )}
         </Stack>
       </Box>
       <Box ref={textRef}
