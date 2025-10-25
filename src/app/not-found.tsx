@@ -1,5 +1,6 @@
+"use client";
+
 import * as React from 'react';
-import type { Metadata } from 'next';
 import RouterLink from 'next/link';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -10,9 +11,12 @@ import { config } from '@/config';
 import { paths } from '@/paths';
 import { ArrowBack } from '@mui/icons-material';
 
-export const metadata = { title: `404 | ${config.site.name}` } satisfies Metadata;
-
 export default function NotFound(): React.JSX.Element {
+
+  React.useEffect(() => {
+    document.title = `404 | ${config.site.name}`;
+  });
+
   return (
     <Box component="main" sx={{ alignItems: 'center', display: 'flex', justifyContent: 'center', minHeight: '100%' }}>
       <Stack spacing={3} sx={{ alignItems: 'center', maxWidth: 'md' }}>
