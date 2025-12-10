@@ -477,8 +477,14 @@ class SmartDNSAPI {
         return { data: ret.data.upstream_server_list };
     }
 
-    async GetTopClients(): Promise<{ error?: ServerError, data?: TopClients[] | null }> {
-        const ret = await this.server.fetch<TopClientsResponse>('/api/stats/top/client', 'GET', {}, {});
+    async GetTopClients(count?: number): Promise<{ error?: ServerError, data?: TopClients[] | null }> {
+        const searchParams = new URLSearchParams();
+
+        if (count) {
+            searchParams.append('count', count.toString());
+        }
+
+        const ret = await this.server.fetch<TopClientsResponse>(`/api/stats/top/client?${searchParams.toString()}`, 'GET', {}, {});
         if (ret.error) {
             return { error: ret.error };
         }
@@ -490,8 +496,14 @@ class SmartDNSAPI {
         return { data: ret.data.client_top_list };
     }
 
-    async GetTopDomains(): Promise<{ error?: ServerError, data?: TopDomains[] }> {
-        const ret = await this.server.fetch<TopDomainsResponse>('/api/stats/top/domain', 'GET', {}, {});
+    async GetTopDomains(count?: number): Promise<{ error?: ServerError, data?: TopDomains[] }> {
+        const searchParams = new URLSearchParams();
+
+        if (count) {
+            searchParams.append('count', count.toString());
+        }
+
+        const ret = await this.server.fetch<TopDomainsResponse>(`/api/stats/top/domain?${searchParams.toString()}`, 'GET', {}, {});
         if (ret.error) {
             return { error: ret.error };
         }

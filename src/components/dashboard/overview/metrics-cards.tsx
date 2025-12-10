@@ -137,11 +137,32 @@ export function MetricsCards(): React.JSX.Element {
     }, [enqueueSnackbar]);
 
     const connect = React.useCallback((): void => {
+        close(); // Close any existing connection before creating a new one
+        setLoading(true); // Set loading to true when attempting to connect
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const socket = new WebSocket(`${protocol}://${window.location.host}/api/stats/metrics`);
         socketRef.current = socket;
-        socket.onopen = () => {
+
+        // Set a timeout to stop loading if connection doesn't succeed within 5 seconds
+        const connectionTimeout = setTimeout(() => {
             setLoading(false);
+        }, 5000);
+
+        socket.onopen = () => {
+            clearTimeout(connectionTimeout);
+            setLoading(false);
+        }
+
+        socket.onerror = (_event: Event) => {
+            clearTimeout(connectionTimeout);
+            setLoading(false);
+            // Handle connection errors, attempt reconnect
+            if (!doClose.current) {
+                reconnectTimeoutRef.current = setTimeout(() => {
+                    close();
+                    connectRef.current();
+                }, 3000);
+            }
         }
 
         socket.onmessage = (event: MessageEvent) => {
@@ -179,6 +200,22 @@ export function MetricsCards(): React.JSX.Element {
             close();
         }
     }, [connect]);
+
+    React.useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+                    connectRef.current();
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
 
     return (
         <Box>
